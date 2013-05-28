@@ -9,20 +9,15 @@ class Track(Media):
 
     number = Column(Integer)
 
-    artists = relationship(
-        "Artist", secondary="tracks_artists", lazy="dynamic",
-    )
-
-    composers = relationship(
-        "Composer", secondary="tracks_composers", lazy="dynamic",
-    )
-
     disc_id = Column(Integer, ForeignKey("discs.id"), nullable=True)
 
 
 class Artist(Model):
     __tablename__ = "artists"
 
+    tracks = relationship(
+        "Track", backref="artists", secondary="tracks_artists", lazy="dynamic",
+    )
 
 class Album(Media):
     __tablename__ = "albums"
@@ -42,6 +37,13 @@ class Disc(Media):
 
 class Composer(Model):
     __tablename__ = "composers"
+
+    tracks = relationship(
+        "Track",
+        backref="composers",
+        secondary="tracks_composers",
+        lazy="dynamic",
+    )
 
 
 Table(
