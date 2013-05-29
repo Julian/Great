@@ -1,10 +1,7 @@
 import argparse
-import os
-
-from sqlalchemy import create_engine
 
 from great import extract
-from great.models.core import Base, Session
+from great.models.core import Session, configure_db
 
 
 def main(arguments):
@@ -16,12 +13,6 @@ def main(arguments):
         for track in tracks:
             session.add(extract.track_from_itunes(session, track))
         session.commit()
-
-
-def configure_db(db_uri):
-    engine = Base.metadata.bind = create_engine(db_uri)
-    Session.configure(bind=engine)
-    Base.metadata.create_all()
 
 
 parser = argparse.ArgumentParser(description="Great: a ratings collector")

@@ -1,8 +1,12 @@
 import datetime
 
-from sqlalchemy import Column, DateTime, Integer, Unicode, UnicodeText
-from sqlalchemy.orm import sessionmaker, validates
-from sqlalchemy.ext.declarative import AbstractConcreteBase, declarative_base
+from sqlalchemy import (
+    Column, DateTime, Integer, Unicode, UnicodeText, create_engine,
+)
+from sqlalchemy.orm import deferred, sessionmaker, validates
+from sqlalchemy.ext.declarative import (
+    AbstractConcreteBase, declarative_base, declared_attr,
+)
 
 
 Base = declarative_base()
@@ -13,11 +17,14 @@ class ModelMixin(object):
     id = Column(Integer, primary_key=True)
 
     name = Column(Unicode(256))
-    comments = Column(UnicodeText)
     rating = Column(Integer)
 
     created_at = Column(DateTime, default=datetime.datetime.now)
     modified_at = Column(DateTime, onupdate=datetime.datetime.now)
+
+    @declared_attr
+    def comments(cls):
+        return deferred(Column(UnicodeText))
 
     @validates("rating")
     def validate_rating(self, name, rating):
@@ -49,3 +56,10 @@ class Media(ModelMixin, AbstractConcreteBase, Base):
 
     skip_count = Column(Integer, default=0, nullable=False)
     skipped_at = Column(DateTime)
+
+
+def configure_db(db_uri):
+    engine = Base.metadata.bind = create_engine(db_uri)
+    Session.configure(bind=engine)
+    Base.metadata.create_all()
+    return engine
