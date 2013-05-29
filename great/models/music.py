@@ -1,4 +1,5 @@
 from sqlalchemy import Column, ForeignKey, Integer, Table
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from great.models.core import Base, Model, Media
@@ -10,6 +11,18 @@ class Track(Media):
     number = Column(Integer)
 
     disc_id = Column(Integer, ForeignKey("discs.id"), nullable=True)
+
+    @hybrid_property
+    def artist(self):
+        if self.artists:
+            return self.artists[0].name
+
+    @artist.setter
+    def artist(self, name):
+        if not self.artists:
+            self.artists = [Artist(name=name)]
+        else:
+            raise ValueError("{0!r} already has artists set.".format(self))
 
 
 class Artist(Model):
