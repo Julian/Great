@@ -18,11 +18,23 @@ class Track(Media):
             return self.artists[0].name
 
     @artist.setter
-    def artist(self, name):
-        if not self.artists:
-            self.artists = [Artist(name=name)]
-        else:
+    def artist(self, artist):
+        if self.artists:
             raise ValueError("{0!r} already has artists set.".format(self))
+        self.artists = [artist]
+
+    @hybrid_property
+    def album(self):
+        if self.disc:
+            return self.disc.album
+
+    @album.setter
+    def album(self, album):
+        if self.disc is not None:
+            raise ValueError("{0!r} already has its disc set.".format(self))
+        if album.discs.count():
+            raise ValueError("{0!r} already has discs set.".format(album))
+        self.disc = Disc(number=1, album=album)
 
 
 class Artist(Model):
