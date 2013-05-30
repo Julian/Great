@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy import (
     Column, DateTime, Integer, Unicode, UnicodeText, create_engine,
 )
-from sqlalchemy.orm import deferred, sessionmaker, validates
+from sqlalchemy.orm import deferred, scoped_session, sessionmaker, validates
 from sqlalchemy.ext.declarative import (
     AbstractConcreteBase, declarative_base, declared_attr,
 )
@@ -11,6 +11,7 @@ from sqlalchemy.ext.declarative import (
 
 Base = declarative_base()
 Session = sessionmaker()
+ScopedSession = scoped_session(Session)
 
 
 class ModelMixin(object):
@@ -32,15 +33,15 @@ class ModelMixin(object):
             raise ValueError("%r is not between 0 and 10." % (rating,))
         return rating
 
+    def __repr__(self):
+        return "<{0.__class__.__name__} id={0.id} name={0.name!r}>".format(self)
+
     @classmethod
     def get_or_create(cls, session, **kwargs):
         model = session.query(cls).filter_by(**kwargs).first()
         if model is not None:
             return model
         return cls(**kwargs)
-
-    def __repr__(self):
-        return "<{0.__class__.__name__} id={0.id} name={0.name!r}>".format(self)
 
 
 class Model(ModelMixin, AbstractConcreteBase, Base):
