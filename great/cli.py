@@ -1,18 +1,18 @@
 import argparse
 
 from great import extract
-from great.models.core import Session, configure_db
+from great.models.core import db
+from great.app import create_app
 
 
 def main(arguments):
-    configure_db(arguments.db_uri)
+    app = create_app(arguments.db_uri)
 
     if arguments.command == "itunes":
-        session = Session()
         tracks = extract.itunes_tracks(arguments.library_file)
         for track in tracks:
-            session.add(extract.track_from_itunes(session, track))
-        session.commit()
+            db.session.add(extract.track_from_itunes(db.session, track))
+        db.session.commit()
 
 
 parser = argparse.ArgumentParser(description="Great: a ratings collector")

@@ -1,31 +1,25 @@
 import datetime
 
-from sqlalchemy import (
-    Column, DateTime, Integer, Unicode, UnicodeText, create_engine,
-)
-from sqlalchemy.orm import deferred, scoped_session, sessionmaker, validates
-from sqlalchemy.ext.declarative import (
-    AbstractConcreteBase, declarative_base, declared_attr,
-)
+from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import deferred, validates
+from sqlalchemy.ext.declarative import AbstractConcreteBase, declared_attr
 
 
-Base = declarative_base()
-Session = sessionmaker()
-ScopedSession = scoped_session(Session)
+db = SQLAlchemy()
 
 
 class ModelMixin(object):
-    id = Column(Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
 
-    name = Column(Unicode(256))
-    rating = Column(Integer)
+    name = db.Column(db.Unicode(256))
+    rating = db.Column(db.Integer)
 
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    modified_at = Column(DateTime, onupdate=datetime.datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    modified_at = db.Column(db.DateTime, onupdate=datetime.datetime.now)
 
     @declared_attr
     def comments(cls):
-        return deferred(Column(UnicodeText))
+        return deferred(db.Column(db.UnicodeText))
 
     @validates("rating")
     def validate_rating(self, name, rating):
@@ -44,23 +38,16 @@ class ModelMixin(object):
         return cls(**kwargs)
 
 
-class Model(ModelMixin, AbstractConcreteBase, Base):
+class Model(ModelMixin, AbstractConcreteBase, db.Model):
     pass
 
 
-class Media(ModelMixin, AbstractConcreteBase, Base):
-    genre = Column(Unicode(64))
-    year = Column(Integer)
+class Media(ModelMixin, AbstractConcreteBase, db.Model):
+    genre = db.Column(db.Unicode(64))
+    year = db.Column(db.Integer)
 
-    play_count = Column(Integer, default=0, nullable=False)
-    played_at = Column(DateTime)
+    play_count = db.Column(db.Integer, default=0, nullable=False)
+    played_at = db.Column(db.DateTime)
 
-    skip_count = Column(Integer, default=0, nullable=False)
-    skipped_at = Column(DateTime)
-
-
-def configure_db(db_uri):
-    engine = Base.metadata.bind = create_engine(db_uri)
-    Session.configure(bind=engine)
-    Base.metadata.create_all()
-    return engine
+    skip_count = db.Column(db.Integer, default=0, nullable=False)
+    skipped_at = db.Column(db.DateTime)

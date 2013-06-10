@@ -1,16 +1,14 @@
-from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship
 
-from great.models.core import Base, Model, Media
+from great.models.core import Model, Media, db
 
 
 class Track(Media):
     __tablename__ = "tracks"
 
-    number = Column(Integer)
+    number = db.Column(db.Integer)
 
-    disc_id = Column(Integer, ForeignKey("discs.id"), nullable=True)
+    disc_id = db.Column(db.Integer, db.ForeignKey("discs.id"), nullable=True)
 
     @hybrid_property
     def artist(self):
@@ -40,30 +38,31 @@ class Track(Media):
 class Artist(Model):
     __tablename__ = "artists"
 
-    tracks = relationship(
+    tracks = db.relationship(
         "Track", backref="artists", secondary="tracks_artists", lazy="dynamic",
     )
+
 
 class Album(Media):
     __tablename__ = "albums"
 
-    discs = relationship("Disc", backref="album", lazy="dynamic")
+    discs = db.relationship("Disc", backref="album", lazy="dynamic")
 
 
 class Disc(Media):
     __tablename__ = "discs"
 
-    number = Column(Integer)
+    number = db.Column(db.Integer)
 
-    tracks = relationship("Track", backref="disc")
+    tracks = db.relationship("Track", backref="disc")
 
-    album_id = Column(Integer, ForeignKey("albums.id"))
+    album_id = db.Column(db.Integer, db.ForeignKey("albums.id"))
 
 
 class Composer(Model):
     __tablename__ = "composers"
 
-    tracks = relationship(
+    tracks = db.relationship(
         "Track",
         backref="composers",
         secondary="tracks_composers",
@@ -71,16 +70,16 @@ class Composer(Model):
     )
 
 
-Table(
+db.Table(
     "tracks_artists",
-    Base.metadata,
-    Column("track_id", Integer, ForeignKey("tracks.id")),
-    Column("artist_id", Integer, ForeignKey("artists.id")),
+    db.metadata,
+    db.Column("track_id", db.Integer, db.ForeignKey("tracks.id")),
+    db.Column("artist_id", db.Integer, db.ForeignKey("artists.id")),
 )
 
-Table(
+db.Table(
     "tracks_composers",
-    Base.metadata,
-    Column("track_id", Integer, ForeignKey("tracks.id")),
-    Column("composer_id", Integer, ForeignKey("composers.id")),
+    db.metadata,
+    db.Column("track_id", db.Integer, db.ForeignKey("tracks.id")),
+    db.Column("composer_id", db.Integer, db.ForeignKey("composers.id")),
 )
