@@ -7,17 +7,18 @@ from flask_debugtoolbar import DebugToolbarExtension
 from great.models.core import db
 
 
-def create_app(db_uri, debug=True):
+def create_app(config=()):
     app = Flask(__name__)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
+    app.config.from_object("great.config")
+    app.config.from_envvar("GREAT_CONFIG")
+    app.config.from_object(config)
+
     db.init_app(app)
 
     admin = Admin(app, name="Great")
 
-    if debug:
-        app.debug = True
-        app.config["SECRET_KEY"] = uuid.uuid4()
+    if app.config["DEBUG"]:
         toolbar = DebugToolbarExtension(app)
 
     from great import views
