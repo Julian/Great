@@ -3,10 +3,12 @@ import uuid
 
 from flask import Flask
 from flask.config import Config
-from flask.ext.admin import Admin
+from flask.ext.restful import Api
 from flask_debugtoolbar import DebugToolbarExtension
 
+from great import views
 from great.models.core import db
+from great.resources import api
 import great
 
 
@@ -29,13 +31,12 @@ def create_app(config=None):
     app.config.update(config)
 
     db.init_app(app)
-
-    admin = Admin(app, name="Great")
+    views.admin.init_app(app)
+    api.init_app(app)
 
     if app.config["DEBUG"]:
         toolbar = DebugToolbarExtension(app)
 
-    from great import views
     app.register_blueprint(views.great)
 
     return app
