@@ -3,7 +3,6 @@ import uuid
 
 from flask import Flask
 from flask.config import Config
-from flask.ext.restful import Api
 from flask_debugtoolbar import DebugToolbarExtension
 
 from great import views

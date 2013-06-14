@@ -1,6 +1,7 @@
 import datetime
 
 from flask.ext.sqlalchemy import SQLAlchemy
+from sqlalchemy import sql
 from sqlalchemy.orm import deferred, validates
 from sqlalchemy.ext.declarative import AbstractConcreteBase, declared_attr
 
@@ -45,6 +46,13 @@ class Model(ModelMixin, AbstractConcreteBase, db.Model):
 class Media(ModelMixin, AbstractConcreteBase, db.Model):
     genre = db.Column(db.Unicode(64))
     year = db.Column(db.Integer)
+
+    pinned = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False,
+        server_default=sql.expression.false(),
+    )
 
     play_count = db.Column(db.Integer, default=0, nullable=False)
     played_at = db.Column(db.DateTime)
