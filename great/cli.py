@@ -6,7 +6,7 @@ from great.app import create_app
 
 
 def main(arguments):
-    app = create_app(arguments.db_uri)
+    app = create_app()
 
     if arguments.command == "itunes":
         tracks = extract.itunes_tracks(arguments.library_file)
