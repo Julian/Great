@@ -1,2 +1,0 @@
-Flask-DebugToolbar
--r requirements.txt

@@ -1,5 +1,0 @@
-Alembic
-Flask
-Flask-Admin
-Flask-RESTful
-Flask-SQLAlchemy

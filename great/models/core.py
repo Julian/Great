@@ -29,7 +29,8 @@ class ModelMixin(object):
         return rating
 
     def __repr__(self):
-        return "<{0.__class__.__name__} id={0.id} name={0.name!r}>".format(self)
+        message = "<{0.__class__.__name__} id={0.id} name={0.name!r}>"
+        return message.format(self)
 
     @classmethod
     def get_or_create(cls, session, **kwargs):
