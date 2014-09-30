@@ -1,85 +1,40 @@
-from sqlalchemy.ext.hybrid import hybrid_property
-
-from great.models.core import Model, Media, db
-
-
-class Track(Media):
-    __tablename__ = "tracks"
-
-    number = db.Column(db.Integer)
-
-    disc_id = db.Column(db.Integer, db.ForeignKey("discs.id"), nullable=True)
-
-    @hybrid_property
-    def artist(self):
-        if self.artists:
-            return self.artists[0].name
-
-    @artist.setter
-    def artist(self, artist):
-        if self.artists:
-            raise ValueError("{0!r} already has artists set.".format(self))
-        self.artists = [artist]
-
-    @hybrid_property
-    def album(self):
-        if self.disc:
-            return self.disc.album
-
-    @album.setter
-    def album(self, album):
-        if self.disc is not None:
-            raise ValueError("{0!r} already has its disc set.".format(self))
-        if album.discs.count():
-            raise ValueError("{0!r} already has discs set.".format(album))
-        self.disc = Disc(number=1, album=album)
-
-
-class Artist(Model):
-    __tablename__ = "artists"
-
-    tracks = db.relationship(
-        "Track", backref="artists", secondary="tracks_artists", lazy="dynamic",
-    )
-
-
-class Album(Media):
-    __tablename__ = "albums"
-
-    discs = db.relationship("Disc", backref="album", lazy="dynamic")
-
-
-class Disc(Media):
-    __tablename__ = "discs"
-
-    number = db.Column(db.Integer)
-
-    tracks = db.relationship("Track", backref="disc")
-
-    album_id = db.Column(db.Integer, db.ForeignKey("albums.id"))
-
-
-class Composer(Model):
-    __tablename__ = "composers"
-
-    tracks = db.relationship(
-        "Track",
-        backref="composers",
-        secondary="tracks_composers",
-        lazy="dynamic",
-    )
-
-
-db.Table(
-    "tracks_artists",
-    db.metadata,
-    db.Column("track_id", db.Integer, db.ForeignKey("tracks.id")),
-    db.Column("artist_id", db.Integer, db.ForeignKey("artists.id")),
+from sqlalchemy import (
+    Boolean, Column, Date, Enum, ForeignKey, Integer, Table, Unicode, sql,
 )
 
-db.Table(
-    "tracks_composers",
-    db.metadata,
-    db.Column("track_id", db.Integer, db.ForeignKey("tracks.id")),
-    db.Column("composer_id", db.Integer, db.ForeignKey("composers.id")),
+from great.models.core import METADATA, table
+from great._guid import GUID
+
+
+def music_table(*args, **kwargs):
+    args += (Column("mbid", GUID, nullable=True, unique=True),)
+    return table(*args, **kwargs)
+
+
+artists = music_table("artists", with_dates=True)
+albums = music_table(
+    "albums",
+    Column("release_date", Date),
+    Column("type", Enum(u"lp", u"broadcast", u"ep", u"single")),
+    Column(
+        "compilation",
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default=sql.expression.false(),
+    ),
+    Column(
+        "live",
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default=sql.expression.false(),
+    ),
+)
+album_artists = Table(
+    "album_artists",
+    METADATA,
+    Column("album_id", Integer, ForeignKey("albums.id"), primary_key=True),
+    Column("artist_id", Integer, ForeignKey("artists.id"), primary_key=True),
+    Column("join_phrase", Unicode(16)),
 )
