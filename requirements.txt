@@ -1,3 +1,5 @@
 Alchimia
+Minion
 SQLAlchemy
 Twisted
+txmusicbrainz
