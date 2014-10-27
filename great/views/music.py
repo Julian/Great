@@ -15,8 +15,8 @@ def create_endpoints_for(table, app, prefix="/"):
     @app.route(prefix + table.name, methods=["HEAD", "GET"])
     @app.bin.needs(["db"])
     def list_entities(request, db):
-        rows = db.execute(select([table.c.name]))
-        response = Response(json.dumps([name for name, in rows]))
+        rows = db.execute(select([table.c.id, table.c.name]))
+        response = Response(json.dumps([dict(row) for row in rows]))
         response.headers.set("Content-Type", ["application/json"])
         return response
 
