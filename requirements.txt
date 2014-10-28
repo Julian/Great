@@ -1,4 +1,6 @@
 Alchimia
+appdirs
+configparser
 Minion
 SQLAlchemy
 Twisted
