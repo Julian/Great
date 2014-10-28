@@ -2,6 +2,7 @@ import configparser
 
 from appdirs import user_config_dir
 from minion import Application
+from minion.routers import WerkzeugRouter
 from sqlalchemy import create_engine
 from twisted.python.filepath import FilePath
 
@@ -15,7 +16,7 @@ def create_app():
     config = configparser.ConfigParser()
     config.read(CONFIG_HOME.child("config.ini").path)
 
-    app = Application()
+    app = Application(router=WerkzeugRouter())
     app.bin.provides("db")(create_engine(config["db"]["url"]).connect)
 
     music.init_app(app)
