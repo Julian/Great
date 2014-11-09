@@ -1,6 +1,7 @@
 import json
 
 from minion import Response
+from minion.http import Headers
 from sqlalchemy import String, select
 from sqlalchemy.sql.expression import cast
 
@@ -19,9 +20,14 @@ def create_endpoints_for(table, detail_columns, app, prefix="/"):
     @app.bin.needs(["db"])
     def list_entities(request, db):
         rows = db.execute(select([table.c.id, table.c.name]))
-        response = Response(json.dumps([dict(row) for row in rows]))
-        response.headers.set("Content-Type", ["application/json"])
-        return response
+        machine_json = request.headers.get("Accept") == ["application/json"]
+        return Response(
+            headers=Headers([("Content-Type", ["application/json"])]),
+            content=json.dumps(
+                [dict(row) for row in rows],
+                indent=None if machine_json else 2,
+            ),
+        )
 
 
     @app.route(path + "<int:id>/", methods=["HEAD", "GET"])
@@ -29,9 +35,14 @@ def create_endpoints_for(table, detail_columns, app, prefix="/"):
     def show_entity(request, id, db):
         columns = [table.c.id, table.c.name] + detail_columns
         entity = db.execute(select(columns).where(table.c.id == id)).fetchone()
-        response = Response(json.dumps(dict(entity)))
-        response.headers.set("Content-Type", ["application/json"])
-        return response
+        machine_json = request.headers.get("Accept") == ["application/json"]
+        return Response(
+            headers=Headers([("Content-Type", ["application/json"])]),
+            content=json.dumps(
+                dict(entity),
+                indent=None if machine_json else 2,
+            ),
+        )
 
 
 def init_app(app):
