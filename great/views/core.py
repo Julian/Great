@@ -1,8 +1,9 @@
 import configparser
 
 from appdirs import user_config_dir
-from minion import Application
-from minion.routers import WerkzeugRouter
+from minion import Application, Response
+from minion.routers import TraversalRouter
+from minion.traversal import TreeResource
 from sqlalchemy import create_engine
 from twisted.python.filepath import FilePath
 
@@ -16,7 +17,8 @@ def create_app():
     config = configparser.ConfigParser()
     config.read(CONFIG_HOME.child("config.ini").path)
 
-    app = Application(router=WerkzeugRouter())
+    root = TreeResource(render=lambda request : Response(code=404))
+    app = Application(router=TraversalRouter(root=root))
     app.bin.provides("db")(create_engine(config["db"]["url"]).connect)
 
     music.init_app(app)
