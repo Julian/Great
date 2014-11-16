@@ -49,12 +49,11 @@ class GreatServiceMaker(object):
 
     def makeService(self, options):
         greatPath = FilePath(great.__file__).parent()
+        staticPath = greatPath.child("static")
 
         rootResource = Resource()
-        rootResource.putChild(
-            "", File(greatPath.child("templates").child("index.html").path),
-        )
-        rootResource.putChild("static", File(greatPath.child("static").path))
+        rootResource.putChild("", File(staticPath.child("index.html").path))
+        rootResource.putChild("static", File(staticPath.path))
 
         rootResource.putChild("great", MinionResource(create_app()))
 
