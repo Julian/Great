@@ -3,7 +3,7 @@ from sqlalchemy import (
 )
 
 from great.models.core import METADATA, table
-from great._guid import GUID
+from great.models._guid import GUID
 
 
 def music_table(*args, **kwargs):
