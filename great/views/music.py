@@ -14,8 +14,9 @@ class EntityResource(object):
         self.app = app
         self.table = table
 
-        self._detail_query = select([table.c.id, table.c.name] + detail_columns)
-        self._list_query = select([table.c.id, table.c.name])
+        basic_entity_info = [table.c.id, table.c.name]
+        self._detail_query = select(basic_entity_info + detail_columns)
+        self._list_query = select(basic_entity_info)
 
     def list(self, db):
         return [dict(row) for row in db.execute(self._list_query)]
