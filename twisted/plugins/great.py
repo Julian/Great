@@ -14,7 +14,7 @@ from twisted.web.resource import Resource
 from twisted.web.static import File
 from zope.interface import implementer
 
-from great.views.core import create_app
+from great.web import create_app
 import great
 
 
