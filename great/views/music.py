@@ -13,14 +13,15 @@ class EntityResource(object):
     def __init__(self, app, table, detail_columns):
         self.app = app
         self.table = table
-        self.detail_columns = [table.c.id, table.c.name] + detail_columns
+
+        self._detail_query = select([table.c.id, table.c.name] + detail_columns)
+        self._list_query = select([table.c.id, table.c.name])
 
     def list(self, db):
-        rows = db.execute(select([self.table.c.id, self.table.c.name]))
-        return [dict(row) for row in rows]
+        return [dict(row) for row in db.execute(self._list_query)]
 
     def detail(self, db, id):
-        query = select(self.detail_columns).where(self.table.c.id == id)
+        query = self._detail_query.where(self.table.c.id == id)
         return dict(db.execute(query).fetchone())
 
     def get_child(self, name, request):
