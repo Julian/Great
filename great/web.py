@@ -13,13 +13,14 @@ from great.views import music
 CONFIG_HOME = FilePath(user_config_dir("Great"))
 
 
-def create_app():
-    config = configparser.ConfigParser()
-    config.read(CONFIG_HOME.child("config.ini").path)
+def create_app(config=None):
+    if config is None:
+        config = configparser.ConfigParser()
+        config.read(CONFIG_HOME.child("config.ini").path)
 
     root = TreeResource(render=lambda request : Response(code=404))
     app = Application(router=TraversalRouter(root=root))
-    app.bin.provides("db")(create_engine(config["db"]["url"]).connect)
+    app.bin.globals["db"] = create_engine(config["db"]["url"]).connect()
 
     music.init_app(app)
 
