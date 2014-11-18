@@ -12,7 +12,7 @@ METADATA = MetaData()
 def table(name, *args, **kwargs):
     with_dates = kwargs.pop("with_dates", False)
     if with_dates:
-        now = datetime.now
+        now = datetime.utcnow
         args += (
             Column("created_at", DateTime, default=now),
             Column("modified_at", DateTime, default=now, onupdate=now),
