@@ -1,5 +1,4 @@
 from datetime import datetime
-from mock import patch
 from unittest import TestCase
 
 from minion.wsgi import wsgi_app
