@@ -18,6 +18,11 @@ class EntityResource(object):
         self._detail_query = select(basic_entity_info + detail_columns)
         self._list_query = select(basic_entity_info)
 
+    def create(self, db, entity):
+        result = db.execute(self.table.insert().values(**entity))
+        id, = result.inserted_primary_key
+        return self.detail(db=db, id=id)
+
     def list(self, db):
         return [dict(row) for row in db.execute(self._list_query)]
 
@@ -39,7 +44,13 @@ class EntityResource(object):
 
     def render(self, request):
         db = self.app.bin.provide("db", request=request)
-        return self.render_json(content=self.list(db=db), request=request)
+
+        if request.method == b"GET":
+            content = self.list(db=db)
+        elif request.method == b"PUT":
+            content = self.create(db=db, entity=json.load(request.content))
+
+        return self.render_json(content=content, request=request)
 
     def render_json(self, request, content):
         machine_json = request.headers.get("Accept") == ["application/json"]
