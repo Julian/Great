@@ -43,3 +43,6 @@ class TestMusic(TestCase):
                 {u"id" : 2, u"name" : u"Tom Jones"},
             ],
         )
+
+    def test_unknown_method(self):
+        self.app.request(b"/music/artists", method=b"TRACE", status=405)

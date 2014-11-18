@@ -49,6 +49,8 @@ class EntityResource(object):
             content = self.list(db=db)
         elif request.method == b"PUT":
             content = self.create(db=db, entity=json.load(request.content))
+        else:
+            return Response(code=405)
 
         return self.render_json(content=content, request=request)
 
