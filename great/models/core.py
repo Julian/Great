@@ -1,8 +1,6 @@
-from datetime import datetime
-
 from sqlalchemy import (
     Boolean, Column, DateTime, Integer, Unicode, UnicodeText,
-    CheckConstraint, MetaData, Table, sql,
+    CheckConstraint, MetaData, Table, func, sql,
 )
 
 
@@ -12,7 +10,7 @@ METADATA = MetaData()
 def table(name, *args, **kwargs):
     with_dates = kwargs.pop("with_dates", False)
     if with_dates:
-        now = datetime.utcnow
+        now = func.now()
         args += (
             Column("created_at", DateTime, default=now),
             Column("modified_at", DateTime, default=now, onupdate=now),
