@@ -15,7 +15,12 @@ artists = music_table("artists", with_dates=True)
 albums = music_table(
     "albums",
     Column("release_date", Date),
-    Column("type", Enum(u"lp", u"broadcast", u"ep", u"single")),
+    Column(
+        "type",
+        Enum(u"lp", u"broadcast", u"ep", u"single"),
+        default=u"lp",
+        nullable=False,
+    ),
     Column(
         "compilation",
         Boolean,
