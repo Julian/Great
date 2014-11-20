@@ -3,7 +3,7 @@ import json
 from minion import Response
 from minion.http import Headers
 from minion.traversal import LeafResource, TreeResource
-from sqlalchemy import String, select
+from sqlalchemy import String, delete, select
 from sqlalchemy.sql.expression import cast
 
 from great.models import music
@@ -22,6 +22,9 @@ class EntityResource(object):
         result = db.execute(self.table.insert().values(**entity))
         id, = result.inserted_primary_key
         return self.detail(db=db, id=id)
+
+    def delete(self, db, id):
+        db.execute(delete(self.table).where(self.table.c.id == id))
 
     def list(self, db):
         return [dict(row) for row in db.execute(self._list_query)]
@@ -49,6 +52,9 @@ class EntityResource(object):
             content = self.list(db=db)
         elif request.method == b"PUT":
             content = self.create(db=db, entity=json.load(request.content))
+        elif request.method == b"DELETE":
+            self.delete(db=db, id=json.load(request.content)[u"id"])
+            return Response(code=204)
         else:
             return Response(code=405)
 
