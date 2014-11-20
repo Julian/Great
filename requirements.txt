@@ -1,6 +1,6 @@
 Alchimia
 appdirs
-configparser
+configparser>=3.5.0b2
 Minion
 SQLAlchemy
 Twisted
