@@ -3,35 +3,16 @@ import json
 from minion import Response
 from minion.http import Headers
 from minion.traversal import LeafResource, TreeResource
-from sqlalchemy import String, delete, select
+from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
 
 from great.models import music
+from great.models.core import ModelManager
 
 
-class EntityResource(object):
-    def __init__(self, app, table, detail_columns):
-        self.app = app
-        self.table = table
-
-        basic_entity_info = [table.c.id, table.c.name]
-        self._detail_query = select(basic_entity_info + detail_columns)
-        self._list_query = select(basic_entity_info)
-
-    def create(self, db, entity):
-        result = db.execute(self.table.insert().values(**entity))
-        id, = result.inserted_primary_key
-        return self.detail(db=db, id=id)
-
-    def delete(self, db, id):
-        db.execute(delete(self.table).where(self.table.c.id == id))
-
-    def list(self, db):
-        return [dict(row) for row in db.execute(self._list_query)]
-
-    def detail(self, db, id):
-        query = self._detail_query.where(self.table.c.id == id)
-        return dict(db.execute(query).fetchone())
+class ModelResource(object):
+    def __init__(self, manager):
+        self.manager = manager
 
     def get_child(self, name, request):
         if not name:
@@ -39,21 +20,18 @@ class EntityResource(object):
 
         id = int(name)
         def render_detail(request):
-            db = self.app.bin.provide("db", request=request)
-            content = self.detail(db=db, id=id)
+            content = self.manager.detail(id=id)
             return self.render_json(content=content, request=request)
 
         return LeafResource(render=render_detail)
 
     def render(self, request):
-        db = self.app.bin.provide("db", request=request)
-
         if request.method == b"GET":
-            content = self.list(db=db)
+            content = self.manager.list()
         elif request.method == b"PUT":
-            content = self.create(db=db, entity=json.load(request.content))
+            content = self.manager.create(**json.load(request.content))
         elif request.method == b"DELETE":
-            self.delete(db=db, id=json.load(request.content)[u"id"])
+            self.manager.delete(id=json.load(request.content)[u"id"])
             return Response(code=204)
         else:
             return Response(code=405)
@@ -70,10 +48,12 @@ class EntityResource(object):
 
 
 def init_app(app):
+
     music_resource = TreeResource(
         render=lambda request : Response("Music"),
     )
 
+    db = app.bin.globals["db"]
     for table, detail_columns in (
         (
             music.albums, [
@@ -100,10 +80,12 @@ def init_app(app):
     ):
         music_resource.set_child(
             name=table.name,
-            resource=EntityResource(
-                app=app,
-                table=table,
-                detail_columns=detail_columns,
+            resource=ModelResource(
+                manager=ModelManager(
+                    db=db,
+                    table=table,
+                    detail_columns=detail_columns,
+                ),
             )
         )
 

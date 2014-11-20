@@ -1,10 +1,35 @@
 from sqlalchemy import (
     Boolean, Column, DateTime, Integer, Unicode, UnicodeText,
-    CheckConstraint, MetaData, Table, func, sql,
+    CheckConstraint, MetaData, Table, func, delete, sql, select,
 )
 
 
 METADATA = MetaData()
+
+
+class ModelManager(object):
+    def __init__(self, db, table, detail_columns):
+        self.db = db
+        self.table = table
+
+        basic_entity_info = [table.c.id, table.c.name]
+        self._detail_query = select(basic_entity_info + detail_columns)
+        self._list_query = select(basic_entity_info)
+
+    def create(self, **kwargs):
+        result = self.db.execute(self.table.insert().values(**kwargs))
+        id, = result.inserted_primary_key
+        return self.detail(id=id)
+
+    def delete(self, id):
+        self.db.execute(delete(self.table).where(self.table.c.id == id))
+
+    def list(self):
+        return [dict(row) for row in self.db.execute(self._list_query)]
+
+    def detail(self, id):
+        query = self._detail_query.where(self.table.c.id == id)
+        return dict(self.db.execute(query).fetchone())
 
 
 def table(name, *args, **kwargs):
