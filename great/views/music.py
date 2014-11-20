@@ -7,7 +7,7 @@ from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
 
 from great.models import music
-from great.models.core import ModelManager
+from great.models.core import ModelManager, NotFound
 
 
 class ModelResource(object):
@@ -20,7 +20,10 @@ class ModelResource(object):
 
         id = int(name)
         def render_detail(request):
-            content = self.manager.detail(id=id)
+            try:
+                content = self.manager.detail(id=id)
+            except NotFound:
+                return Response(code=404)
             return self.render_json(content=content, request=request)
 
         return LeafResource(render=render_detail)

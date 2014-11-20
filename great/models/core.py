@@ -7,14 +7,18 @@ from sqlalchemy import (
 METADATA = MetaData()
 
 
+class NotFound(Exception):
+    pass
+
+
 class ModelManager(object):
     def __init__(self, db, table, detail_columns):
         self.db = db
         self.table = table
 
-        basic_entity_info = [table.c.id, table.c.name]
-        self._detail_query = select(basic_entity_info + detail_columns)
-        self._list_query = select(basic_entity_info)
+        basic_model_info = [table.c.id, table.c.name]
+        self._detail_query = select(basic_model_info + detail_columns)
+        self._list_query = select(basic_model_info)
 
     def create(self, **kwargs):
         result = self.db.execute(self.table.insert().values(**kwargs))
@@ -29,7 +33,10 @@ class ModelManager(object):
 
     def detail(self, id):
         query = self._detail_query.where(self.table.c.id == id)
-        return dict(self.db.execute(query).fetchone())
+        model = self.db.execute(query).first()
+        if model is None:
+            raise NotFound(id)
+        return dict(model)
 
 
 def table(name, *args, **kwargs):

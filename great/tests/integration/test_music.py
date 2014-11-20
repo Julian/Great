@@ -52,6 +52,9 @@ class TestMusic(TestCase):
         response = self.app.get(b"/music/artists/1")
         self.assertEqual(response.json, artist)
 
+    def test_nonexisting_detail_artist(self):
+        self.app.get(b"/music/artists/1", status=404)
+
     def test_delete_artist(self):
         self.app.put_json(b"/music/artists/", params={b"name" : b"John Smith"})
         self.assertEqual(
