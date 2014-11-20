@@ -1,5 +1,7 @@
+from datetime import datetime
 import json
 
+from characteristic import Attribute, attributes
 from minion import Response
 from minion.http import Headers
 from minion.traversal import LeafResource, TreeResource
@@ -10,10 +12,14 @@ from great.models import music
 from great.models.core import ModelManager, NotFound
 
 
+@attributes(
+    [
+        Attribute(name="manager"),
+        Attribute(name="from_detail_json", default_value=json.load),
+        Attribute(name="for_detail_json", default_value=lambda model : model),
+    ],
+)
 class ModelResource(object):
-    def __init__(self, manager):
-        self.manager = manager
-
     def get_child(self, name, request):
         if not name:
             return self
@@ -21,7 +27,7 @@ class ModelResource(object):
         id = int(name)
         def render_detail(request):
             try:
-                content = self.manager.detail(id=id)
+                content = self.for_detail_json(self.manager.detail(id=id))
             except NotFound:
                 return Response(code=404)
             return self.render_json(content=content, request=request)
@@ -32,7 +38,8 @@ class ModelResource(object):
         if request.method == b"GET":
             content = self.manager.list()
         elif request.method == b"PUT":
-            content = self.manager.create(**json.load(request.content))
+            new = self.from_detail_json(request.content)
+            content = self.for_detail_json(self.manager.create(**new))
         elif request.method == b"DELETE":
             self.manager.delete(id=json.load(request.content)[u"id"])
             return Response(code=204)
@@ -57,9 +64,10 @@ def init_app(app):
     )
 
     db = app.bin.globals["db"]
-    for table, detail_columns in (
+    for table, detail_columns, from_detail_json, for_detail_json in (
         (
-            music.albums, [
+            music.albums,
+            [
                 music.albums.c.comments,
                 music.albums.c.compilation,
                 music.albums.c.live,
@@ -69,9 +77,12 @@ def init_app(app):
                 music.albums.c.release_date,
                 music.albums.c.type,
             ],
+            _album_from_json,
+            _album_for_json,
         ),
         (
-            music.artists, [
+            music.artists,
+            [
                 music.artists.c.comments,
                 cast(music.artists.c.created_at, String).label("created_at"),
                 cast(music.artists.c.mbid, String).label("mbid"),
@@ -79,11 +90,15 @@ def init_app(app):
                 music.artists.c.pinned,
                 music.artists.c.rating,
             ],
+            json.load,
+            lambda artist : artist,
         ),
     ):
         music_resource.set_child(
             name=table.name,
             resource=ModelResource(
+                from_detail_json=from_detail_json,
+                for_detail_json=for_detail_json,
                 manager=ModelManager(
                     db=db,
                     table=table,
@@ -93,3 +108,16 @@ def init_app(app):
         )
 
     app.router.root.set_child("music", music_resource)
+
+
+def _album_from_json(detail):
+    album = json.load(detail)
+    album[u"release_date"] = datetime.strptime(
+        album[u"release_date"], "%Y-%m-%d",
+    ).date()
+    return album
+
+
+def _album_for_json(album):
+    album[u"release_date"] = album[u"release_date"].strftime("%Y-%m-%d")
+    return album
