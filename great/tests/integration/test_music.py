@@ -33,6 +33,25 @@ class TestMusic(TestCase):
             },
         )
 
+    def test_detail_artist(self):
+        response = self.app.put_json(
+            b"/music/artists/", params={b"name" : b"John Smith"},
+        )
+        artist = {
+            u"id" : 1,
+            u"name" : u"John Smith",
+            u"mbid" : None,
+            u"rating" : None,
+            u"comments" : None,
+            u"pinned" : False,
+            u"created_at" : response.json[u"created_at"],
+            u"modified_at" : response.json[u"created_at"],
+        }
+        self.assertEqual(response.json, artist)
+
+        response = self.app.get(b"/music/artists/1")
+        self.assertEqual(response.json, artist)
+
     def test_delete_artist(self):
         self.app.put_json(b"/music/artists/", params={b"name" : b"John Smith"})
         self.assertEqual(
