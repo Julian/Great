@@ -1,0 +1,25 @@
+{
+    "type" : "object",
+    "properties" : {
+        "id" : {"type" : "integer", "minimum" : 1},
+        "name" : {"type" : "string"},
+        "mbid" : {"type" : "string", "format" : "uuid"},
+        "rating" : {"type" : "integer", "minimum" : 0, "maximum" : 10},
+        "comments" : {"type" : "string"},
+        "pinned" : {"type" : "boolean", "default" : false},
+        "created_at" : {"type" : "string", "format" : "datetime"},
+        "modified_at" : {"type" : "string", "format" : "datetime"}
+    },
+    "required" : ["id", "name"],
+    "links" : [
+        {
+            "description" : "Create a new artist",
+            "href" : "/music/artists",
+            "method" : "PUT",
+            "rel" : "create",
+            "title" : "Create",
+            "schema" : {"$ref" : "#"},
+            "targetSchema" : {"$ref" : "#"}
+        }
+    ]
+}
