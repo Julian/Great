@@ -34,16 +34,25 @@ great.Router = Backbone.Router.extend({
     },
 
     home: function () {
-        great.artistsView = new great.ArtistsView();
-        great.artistsView.render();
-        this.$content.html(great.artistsView.el);
+        great.artists = new great.ArtistsCollection();
+
+        var self = this;
+        Promise.resolve(great.artists.fetch({dataType: "json"})).then(
+            function () {
+                great.artistsListView = new great.ArtistsListView(
+                    {model: great.artists}
+                );
+                great.artistsListView.render()
+                self.$content.html(great.artistsListView.el);
+            }
+        );
     }
 
 });
 
 
 $(document).on("ready", function () {
-    var views = ["ArtistsView"];
+    var views = ["ArtistsListView", "ArtistView"];
     great.loadTemplates(views).then(
         function () {
             great.router = new great.Router();
