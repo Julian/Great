@@ -49,7 +49,8 @@ class ModelResource(object):
         return self.render_json(content=content, request=request)
 
     def render_json(self, request, content):
-        machine_json = request.headers.get("Accept") == ["application/json"]
+        accept = (request.headers.get("Accept") or [""])[0]
+        machine_json = accept.split(",")[0].strip() == "application/json"
         indent = None if machine_json else 2
         return Response(
             headers=Headers([("Content-Type", ["application/json"])]),
