@@ -15,7 +15,7 @@
         {
             "description" : "Create a new artist",
             "href" : "/music/artists",
-            "method" : "PUT",
+            "method" : "POST",
             "rel" : "create",
             "title" : "Create",
             "schema" : {"$ref" : "#"},

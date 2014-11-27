@@ -20,7 +20,7 @@ class ApplicationTestMixin(object):
 
 class TestArtist(ApplicationTestMixin, TestCase):
     def test_create_artist(self):
-        response = self.app.put_json(
+        response = self.app.post_json(
             b"/music/artists/", params={u"name" : u"John Smith"},
         )
         self.assertEqual(
@@ -37,7 +37,7 @@ class TestArtist(ApplicationTestMixin, TestCase):
         )
 
     def test_detail_artist(self):
-        response = self.app.put_json(
+        response = self.app.post_json(
             b"/music/artists/", params={u"name" : u"John Smith"},
         )
         artist = {
@@ -59,21 +59,21 @@ class TestArtist(ApplicationTestMixin, TestCase):
         self.app.get(b"/music/artists/1", status=404)
 
     def test_delete_artist(self):
-        self.app.put_json(b"/music/artists/", params={b"name" : b"John Smith"})
+        self.app.post_json(b"/music/artists/", params={b"name" : b"Jim Smith"})
         self.assertEqual(
             self.app.get(b"/music/artists").json,
-            [{u"id" : 1, u"name" : u"John Smith"}],
+            [{u"id" : 1, u"name" : u"Jim Smith"}],
         )
         response = self.app.delete_json(b"/music/artists/", params={u"id" : 1})
         self.assertFalse(self.app.get(b"/music/artists").json)
         self.assertEqual(response.status_code, 204)
 
     def test_list_artists(self):
-        self.app.put_json(b"/music/artists/", params={u"name" : u"John Smith"})
-        self.app.put_json(b"/music/artists/", params={u"name" : u"Tom Jones"})
+        self.app.post_json(b"/music/artists/", params={u"name" : u"Jim Smith"})
+        self.app.post_json(b"/music/artists/", params={u"name" : u"Tom Jones"})
         self.assertEqual(
             self.app.get(b"/music/artists").json, [
-                {u"id" : 1, u"name" : u"John Smith"},
+                {u"id" : 1, u"name" : u"Jim Smith"},
                 {u"id" : 2, u"name" : u"Tom Jones"},
             ],
         )
@@ -84,7 +84,7 @@ class TestArtist(ApplicationTestMixin, TestCase):
 
 class TestAlbum(ApplicationTestMixin, TestCase):
     def test_create_album(self):
-        response = self.app.put_json(
+        response = self.app.post_json(
             b"/music/albums/", params={
                 u"name" : u"Total Beats",
                 u"release_date" : u"2001-05-05",
@@ -106,7 +106,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         )
 
     def test_detail_album(self):
-        response = self.app.put_json(
+        response = self.app.post_json(
             b"/music/albums/", params={
                 u"name" : u"Total Beats",
                 u"release_date" : u"2001-05-05",
@@ -133,7 +133,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.app.get(b"/music/albums/1", status=404)
 
     def test_delete_album(self):
-        response = self.app.put_json(
+        response = self.app.post_json(
             b"/music/albums/", params={
                 u"name" : u"Total Beats",
                 u"release_date" : u"2001-05-05",
@@ -148,13 +148,13 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.assertEqual(response.status_code, 204)
 
     def test_list_albums(self):
-        self.app.put_json(
+        self.app.post_json(
             b"/music/albums/", params={
                 u"name" : u"Total Beats",
                 u"release_date" : u"2001-05-05",
             },
         )
-        self.app.put_json(
+        self.app.post_json(
             b"/music/albums/", params={
                 u"name" : u"Ace of Space",
                 u"release_date" : u"2002-02-02",

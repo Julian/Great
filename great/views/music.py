@@ -37,7 +37,7 @@ class ModelResource(object):
     def render(self, request):
         if request.method == b"GET":
             content = self.manager.list()
-        elif request.method == b"PUT":
+        elif request.method == b"POST":
             new = self.from_detail_json(request.content)
             content = self.for_detail_json(self.manager.create(**new))
         elif request.method == b"DELETE":
