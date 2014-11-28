@@ -3,7 +3,7 @@ import json
 
 from characteristic import Attribute, attributes
 from minion import Response
-from minion.http import Headers
+from minion.http import Headers, MediaRange
 from minion.traversal import LeafResource, TreeResource
 from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
@@ -50,7 +50,9 @@ class ModelResource(object):
 
     def render_json(self, request, content):
         accept = (request.headers.get("Accept") or [""])[0]
-        machine_json = accept.split(",")[0].strip() == "application/json"
+        machine_json = request.accept.media_types[-1] == MediaRange(
+            type="application", subtype="json",
+        )
         indent = None if machine_json else 2
         return Response(
             headers=Headers([("Content-Type", ["application/json"])]),
