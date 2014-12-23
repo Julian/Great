@@ -110,7 +110,7 @@ def init_app(app):
             )
         )
 
-    app.router.root.set_child("music", music_resource)
+    app.router.mapper.root.set_child("music", music_resource)
 
 
 def _album_from_json(detail):
