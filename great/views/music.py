@@ -49,7 +49,6 @@ class ModelResource(object):
         return self.render_json(content=content, request=request)
 
     def render_json(self, request, content):
-        accept = (request.headers.get("Accept") or [""])[0]
         machine_json = request.accept.media_types[-1] == MediaRange(
             type="application", subtype="json",
         )

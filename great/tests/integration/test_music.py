@@ -1,7 +1,7 @@
 from datetime import datetime
 from unittest import TestCase
 
-from minion.wsgi import wsgi_app
+from minion import wsgi
 from webtest import TestApp
 
 from great.models.core import METADATA
@@ -13,7 +13,7 @@ class ApplicationTestMixin(object):
         super(ApplicationTestMixin, self).setUp()
         self.config = {"db" : {"url" : "sqlite://"}}
         self.great = create_app(config=self.config)
-        self.app = TestApp(wsgi_app(self.great))
+        self.app = TestApp(wsgi.create_app(self.great))
 
         METADATA.create_all(self.great.bin.provide("db"))
 
