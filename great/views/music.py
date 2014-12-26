@@ -3,7 +3,6 @@ import json
 
 from characteristic import Attribute, attributes
 from minion import Response
-from minion.http import Headers, MediaRange
 from minion.renderers import JSON
 from minion.traversal import LeafResource, TreeResource
 from sqlalchemy import String
