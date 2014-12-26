@@ -1,7 +1,8 @@
 import configparser
 
 from appdirs import user_config_dir
-from minion import Application, Response
+from minion.core import Application
+from minion.request import Response
 from minion.routing import Router, TraversalMapper
 from minion.traversal import TreeResource
 from sqlalchemy import create_engine

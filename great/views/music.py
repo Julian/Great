@@ -2,8 +2,8 @@ from datetime import datetime
 import json
 
 from characteristic import Attribute, attributes
-from minion import Response
 from minion.renderers import JSON
+from minion.request import Response
 from minion.traversal import LeafResource, TreeResource
 from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
