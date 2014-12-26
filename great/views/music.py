@@ -4,6 +4,7 @@ import json
 from characteristic import Attribute, attributes
 from minion import Response
 from minion.http import Headers, MediaRange
+from minion.renderers import JSON
 from minion.traversal import LeafResource, TreeResource
 from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
@@ -20,6 +21,9 @@ from great.models.core import ModelManager, NotFound
     ],
 )
 class ModelResource(object):
+
+    renderer = JSON()
+
     def get_child(self, name, request):
         if not name:
             return self
@@ -30,7 +34,7 @@ class ModelResource(object):
                 content = self.for_detail_json(self.manager.detail(id=id))
             except NotFound:
                 return Response(code=404)
-            return self.render_json(content=content, request=request)
+            return self.renderer.render(jsonable=content, request=request)
 
         return LeafResource(render=render_detail)
 
@@ -46,17 +50,7 @@ class ModelResource(object):
         else:
             return Response(code=405)
 
-        return self.render_json(content=content, request=request)
-
-    def render_json(self, request, content):
-        machine_json = request.accept.media_types[-1] == MediaRange(
-            type="application", subtype="json",
-        )
-        indent = None if machine_json else 2
-        return Response(
-            headers=Headers([("Content-Type", ["application/json"])]),
-            content=json.dumps(content, indent=indent),
-        )
+        return self.renderer.render(jsonable=content, request=request)
 
 
 def init_app(app):
