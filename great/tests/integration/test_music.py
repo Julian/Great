@@ -77,6 +77,18 @@ class TestArtist(ApplicationTestMixin, TestCase):
             ],
         )
 
+    def test_list_artists_fields(self):
+        self.app.post_json(
+            b"/music/artists/", params={u"name" : u"A", u"mbid" : u"1" * 32},
+        )
+        self.app.post_json(b"/music/artists/", params={u"name" : u"B"})
+        self.assertEqual(
+            self.app.get(b"/music/artists?fields=mbid").json, [
+                {u"id" : 1, u"name" : u"A", u"mbid" : u"1" * 32},
+                {u"id" : 2, u"name" : u"B", u"mbid" : None},
+            ],
+        )
+
     def test_unknown_method(self):
         self.app.request(b"/music/artists", method=b"TRACE", status=405)
 

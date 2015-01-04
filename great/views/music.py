@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 import json
 
 from characteristic import Attribute, attributes
@@ -12,6 +13,12 @@ from great.models import music
 from great.models.core import ModelManager, NotFound
 
 
+def _uuid_to_str(obj):
+    if isinstance(obj, UUID):
+        return obj.hex
+    raise TypeError("{!r} is not JSON serializable".format(obj))
+
+
 @attributes(
     [
         Attribute(name="manager"),
@@ -21,7 +28,7 @@ from great.models.core import ModelManager, NotFound
 )
 class ModelResource(object):
 
-    renderer = JSON()
+    renderer = JSON(default=_uuid_to_str)
 
     def get_child(self, name, request):
         if not name:
@@ -39,7 +46,9 @@ class ModelResource(object):
 
     def render(self, request):
         if request.method == b"GET":
-            content = self.manager.list()
+            content = self.manager.list(
+                fields=request.url.query.get(b"fields", ()),
+            )
         elif request.method == b"POST":
             new = self.from_detail_json(request.content)
             content = self.for_detail_json(self.manager.create(**new))

@@ -16,9 +16,8 @@ class ModelManager(object):
         self.db = db
         self.table = table
 
-        basic_model_info = [table.c.id, table.c.name]
-        self._detail_query = select(basic_model_info + detail_columns)
-        self._list_query = select(basic_model_info)
+        basic_fields = self._basic_fields = [table.c.id, table.c.name]
+        self._detail_query = select(basic_fields + list(detail_columns))
 
     def create(self, **kwargs):
         result = self.db.execute(self.table.insert().values(**kwargs))
@@ -28,8 +27,11 @@ class ModelManager(object):
     def delete(self, id):
         self.db.execute(delete(self.table).where(self.table.c.id == id))
 
-    def list(self):
-        return [dict(row) for row in self.db.execute(self._list_query)]
+    def list(self, fields=()):
+        fields = self._basic_fields + [
+            getattr(self.table.c, field) for field in fields
+        ]
+        return [dict(row) for row in self.db.execute(select(fields))]
 
     def detail(self, id):
         query = self._detail_query.where(self.table.c.id == id)
