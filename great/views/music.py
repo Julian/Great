@@ -35,6 +35,7 @@ class ModelResource(object):
             return self
 
         id = int(name)
+
         def render_detail(request):
             try:
                 content = self.for_detail_json(self.manager.detail(id=id))
