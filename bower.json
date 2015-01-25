@@ -1,0 +1,6 @@
+{
+  "name": "Great",
+  "dependencies": {
+    "backbone.paginator": "~2.0.2"
+  }
+}
