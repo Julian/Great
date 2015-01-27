@@ -6,14 +6,14 @@ module.exports = function(grunt) {
             css: {
                 options: {destPrefix: 'great/static/css/vendor'},
                 files: {
-                    'backgrid.min.css': 'backgrid/lib/backgrid.min.css'
+                    'backgrid.css': 'backgrid/lib/backgrid.css'
                 }
             },
             js: {
                 options: {destPrefix: 'great/static/js/vendor'},
                 files: {
-                    'backbone.paginator.min.js': 'backbone.paginator/lib/backbone.paginator.min.js',
-                    'backgrid.min.js': 'backgrid/lib/backgrid.min.js'
+                    'backbone.paginator.js': 'backbone.paginator/lib/backbone.paginator.js',
+                    'backgrid.js': 'backgrid/lib/backgrid.js'
                 }
             }
         }
