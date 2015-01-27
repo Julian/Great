@@ -1,6 +1,7 @@
 {
   "name": "Great",
   "dependencies": {
-    "backbone.paginator": "~2.0.2"
+    "backbone.paginator": "~2.0.2",
+    "backgrid": "~0.3.5"
   }
 }

@@ -5,8 +5,9 @@ great.Artist = Backbone.Model.extend({
 });
 
 
-great.ArtistsCollection = Backbone.Collection.extend({
+great.ArtistsCollection = Backbone.PageableCollection.extend({
     model: great.Artist,
     comparator: "name",
     url: "/great/music/artists/?fields=mbid",
+    mode: "client",
 });
