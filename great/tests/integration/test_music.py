@@ -17,7 +17,7 @@ class ApplicationTestMixin(object):
         METADATA.create_all(self.great.bin.provide("db"))
 
     def create(self, **params):
-        return self.app.post_json(self.URL, params=params)
+        return self.app.post_json(self.URL, params=params).json
 
     def delete(self, **params):
         return self.app.delete_json(self.URL, params=params)
@@ -33,15 +33,15 @@ class TestArtist(ApplicationTestMixin, TestCase):
     def test_create_artist(self):
         response = self.create(name="John Smith")
         self.assertEqual(
-            response.json, {
+            response, {
                 u"id" : 1,
                 u"name" : u"John Smith",
                 u"mbid" : None,
                 u"rating" : None,
                 u"comments" : None,
                 u"pinned" : False,
-                u"created_at" : response.json[u"created_at"],
-                u"modified_at" : response.json[u"created_at"],
+                u"created_at" : response[u"created_at"],
+                u"modified_at" : response[u"created_at"],
             },
         )
 
@@ -54,10 +54,10 @@ class TestArtist(ApplicationTestMixin, TestCase):
             u"rating" : None,
             u"comments" : None,
             u"pinned" : False,
-            u"created_at" : response.json[u"created_at"],
-            u"modified_at" : response.json[u"created_at"],
+            u"created_at" : response[u"created_at"],
+            u"modified_at" : response[u"created_at"],
         }
-        self.assertEqual(response.json, artist)
+        self.assertEqual(response, artist)
 
         response = self.app.get(b"/music/artists/1")
         self.assertEqual(response.json, artist)
@@ -105,7 +105,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
     def test_create_album(self):
         response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
         self.assertEqual(
-            response.json, {
+            response, {
                 u"id" : 1,
                 u"name" : u"Total Beats",
                 u"mbid" : None,
@@ -133,7 +133,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
             u"pinned" : False,
             u"release_date" : u"2001-05-05",
         }
-        self.assertEqual(response.json, album)
+        self.assertEqual(response, album)
 
         response = self.app.get(b"/music/albums/1")
         self.assertEqual(response.json, album)
@@ -142,7 +142,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.app.get(b"/music/albums/1", status=404)
 
     def test_delete_album(self):
-        response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
+        self.create(name=u"Total Beats", release_date=u"2001-05-05")
         self.assertEqual(self.list(), [{u"id" : 1, u"name" : u"Total Beats"}])
 
         response = self.delete(id=1)
