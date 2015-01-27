@@ -16,12 +16,22 @@ class ApplicationTestMixin(object):
 
         METADATA.create_all(self.great.bin.provide("db"))
 
+    def create(self, **params):
+        return self.app.post_json(self.URL, params=params)
+
+    def delete(self, **params):
+        return self.app.delete_json(self.URL, params=params)
+
+    def list(self, **params):
+        return self.app.get(self.URL, params=params).json
+
 
 class TestArtist(ApplicationTestMixin, TestCase):
+
+    URL = b"/music/artists"
+
     def test_create_artist(self):
-        response = self.app.post_json(
-            b"/music/artists/", params={u"name" : u"John Smith"},
-        )
+        response = self.create(name="John Smith")
         self.assertEqual(
             response.json, {
                 u"id" : 1,
@@ -36,9 +46,7 @@ class TestArtist(ApplicationTestMixin, TestCase):
         )
 
     def test_detail_artist(self):
-        response = self.app.post_json(
-            b"/music/artists/", params={u"name" : u"John Smith"},
-        )
+        response = self.create(name=u"John Smith")
         artist = {
             u"id" : 1,
             u"name" : u"John Smith",
@@ -58,32 +66,29 @@ class TestArtist(ApplicationTestMixin, TestCase):
         self.app.get(b"/music/artists/1", status=404)
 
     def test_delete_artist(self):
-        self.app.post_json(b"/music/artists/", params={b"name" : b"Jim Smith"})
-        self.assertEqual(
-            self.app.get(b"/music/artists").json,
-            [{u"id" : 1, u"name" : u"Jim Smith"}],
-        )
-        response = self.app.delete_json(b"/music/artists/", params={u"id" : 1})
-        self.assertFalse(self.app.get(b"/music/artists").json)
+        self.create(name=b"Jim Smith")
+        self.assertEqual(self.list(), [{u"id" : 1, u"name" : u"Jim Smith"}])
+
+        response = self.delete(id=1)
         self.assertEqual(response.status_code, 204)
 
+        self.assertFalse(self.list())
+
     def test_list_artists(self):
-        self.app.post_json(b"/music/artists/", params={u"name" : u"Jim Smith"})
-        self.app.post_json(b"/music/artists/", params={u"name" : u"Tom Jones"})
+        self.create(name=u"Jim Smith")
+        self.create(name=u"Tom Jones")
         self.assertEqual(
-            self.app.get(b"/music/artists").json, [
+            self.list(), [
                 {u"id" : 1, u"name" : u"Jim Smith"},
                 {u"id" : 2, u"name" : u"Tom Jones"},
             ],
         )
 
     def test_list_artists_fields(self):
-        self.app.post_json(
-            b"/music/artists/", params={u"name" : u"A", u"mbid" : u"1" * 32},
-        )
-        self.app.post_json(b"/music/artists/", params={u"name" : u"B"})
+        self.create(name=u"A", mbid=u"1" * 32)
+        self.create(name=u"B")
         self.assertEqual(
-            self.app.get(b"/music/artists?fields=mbid").json, [
+            self.list(fields="mbid"), [
                 {u"id" : 1, u"name" : u"A", u"mbid" : u"1" * 32},
                 {u"id" : 2, u"name" : u"B", u"mbid" : None},
             ],
@@ -94,13 +99,11 @@ class TestArtist(ApplicationTestMixin, TestCase):
 
 
 class TestAlbum(ApplicationTestMixin, TestCase):
+
+    URL = b"/music/albums"
+
     def test_create_album(self):
-        response = self.app.post_json(
-            b"/music/albums/", params={
-                u"name" : u"Total Beats",
-                u"release_date" : u"2001-05-05",
-            },
-        )
+        response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
         self.assertEqual(
             response.json, {
                 u"id" : 1,
@@ -117,12 +120,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         )
 
     def test_detail_album(self):
-        response = self.app.post_json(
-            b"/music/albums/", params={
-                u"name" : u"Total Beats",
-                u"release_date" : u"2001-05-05",
-            },
-        )
+        response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
         album = {
             u"id" : 1,
             u"name" : u"Total Beats",
@@ -144,35 +142,19 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.app.get(b"/music/albums/1", status=404)
 
     def test_delete_album(self):
-        response = self.app.post_json(
-            b"/music/albums/", params={
-                u"name" : u"Total Beats",
-                u"release_date" : u"2001-05-05",
-            },
-        )
-        self.assertEqual(
-            self.app.get(b"/music/albums").json,
-            [{u"id" : 1, u"name" : u"Total Beats"}],
-        )
-        response = self.app.delete_json(b"/music/albums/", params={u"id" : 1})
-        self.assertFalse(self.app.get(b"/music/albums").json)
+        response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
+        self.assertEqual(self.list(), [{u"id" : 1, u"name" : u"Total Beats"}])
+
+        response = self.delete(id=1)
         self.assertEqual(response.status_code, 204)
 
+        self.assertFalse(self.list())
+
     def test_list_albums(self):
-        self.app.post_json(
-            b"/music/albums/", params={
-                u"name" : u"Total Beats",
-                u"release_date" : u"2001-05-05",
-            },
-        )
-        self.app.post_json(
-            b"/music/albums/", params={
-                u"name" : u"Ace of Space",
-                u"release_date" : u"2002-02-02",
-            },
-        )
+        self.create(name=u"Total Beats", release_date=u"2001-05-05")
+        self.create(name=u"Ace of Space", release_date=u"2002-02-02")
         self.assertEqual(
-            self.app.get(b"/music/albums").json, [
+            self.list(), [
                 {u"id" : 1, u"name" : u"Total Beats"},
                 {u"id" : 2, u"name" : u"Ace of Space"},
             ],
