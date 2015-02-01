@@ -47,8 +47,13 @@ class ModelResource(object):
 
     def render(self, request):
         if request.method == b"GET":
+            fields = [
+                field
+                for raw in request.url.query.get(b"fields", ())
+                for field in raw.rstrip(b",").split(b",")
+            ]
             content = self.manager.list(
-                fields=request.url.query.get(b"fields", ()),
+                fields=fields,
             )
         elif request.method == b"POST":
             new = self.from_detail_json(request.content)
@@ -117,12 +122,16 @@ def init_app(app):
 
 def _album_from_json(detail):
     album = json.load(detail)
-    album[u"release_date"] = datetime.strptime(
-        album[u"release_date"], "%Y-%m-%d",
-    ).date()
+    release_date = album.get(u"release_date")
+    if release_date is not None:
+        album[u"release_date"] = datetime.strptime(
+            release_date, "%Y-%m-%d"
+        ).date()
     return album
 
 
 def _album_for_json(album):
-    album[u"release_date"] = album[u"release_date"].strftime("%Y-%m-%d")
+    release_date = album.get(u"release_date")
+    if release_date is not None:
+        album[u"release_date"] = release_date.strftime("%Y-%m-%d")
     return album

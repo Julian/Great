@@ -94,6 +94,21 @@ class TestArtist(ApplicationTestMixin, TestCase):
             ],
         )
 
+    def test_list_artists_multiple_fields(self):
+        self.create(name=u"A", mbid=u"1" * 32)
+        self.create(name=u"B", rating=8)
+        self.assertEqual(
+            self.list(fields="mbid,rating,"), [
+                {
+                    u"id" : 1,
+                    u"name" : u"A",
+                    u"mbid" : u"1" * 32,
+                    "rating" : None,
+                },
+                {u"id" : 2, u"name" : u"B", u"mbid" : None, "rating" : 8},
+            ],
+        )
+
     def test_unknown_method(self):
         self.app.request(b"/music/artists", method=b"TRACE", status=405)
 
@@ -157,6 +172,31 @@ class TestAlbum(ApplicationTestMixin, TestCase):
             self.list(), [
                 {u"id" : 1, u"name" : u"Total Beats"},
                 {u"id" : 2, u"name" : u"Ace of Space"},
+            ],
+        )
+
+    def test_list_albums_fields(self):
+        self.create(name=u"A", mbid=u"1" * 32)
+        self.create(name=u"B")
+        self.assertEqual(
+            self.list(fields="mbid"), [
+                {u"id" : 1, u"name" : u"A", u"mbid" : u"1" * 32},
+                {u"id" : 2, u"name" : u"B", u"mbid" : None},
+            ],
+        )
+
+    def test_list_albums_multiple_fields(self):
+        self.create(name=u"A", mbid=u"1" * 32)
+        self.create(name=u"B", rating=8)
+        self.assertEqual(
+            self.list(fields="mbid,rating,"), [
+                {
+                    u"id" : 1,
+                    u"name" : u"A",
+                    u"mbid" : u"1" * 32,
+                    "rating" : None,
+                },
+                {u"id" : 2, u"name" : u"B", u"mbid" : None, "rating" : 8},
             ],
         )
 
