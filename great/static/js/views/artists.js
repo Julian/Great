@@ -11,7 +11,7 @@ great.ArtistsListView = Backbone.View.extend({
 
         var columns = [
             {name: "name", cell: "string", editable: false},
-            {name: "rating", cell: "number"},
+            {name: "rating", cell: "integer"},
             {name: "mbid", cell: "string", editable: false, sortable: false}
         ];
         var grid = new Backgrid.Grid({
