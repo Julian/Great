@@ -11,7 +11,17 @@ def music_table(*args, **kwargs):
     return table(*args, **kwargs)
 
 
-artists = music_table("artists", with_dates=True)
+artists = music_table(
+    "artists",
+    Column(
+        "tracked",
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default=sql.expression.false(),
+    ),
+    with_dates=True,
+)
 albums = music_table(
     "albums",
     Column("release_date", Date),
