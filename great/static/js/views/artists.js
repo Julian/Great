@@ -18,10 +18,15 @@ great.ArtistsListView = Backbone.View.extend({
             columns: columns,
             collection: this.model
         });
+        var filter = new Backgrid.Extension.ClientSideFilter({
+            collection: this.model,
+            fields: ["name"]
+        });
         var paginator = new Backgrid.Extension.Paginator({
             collection: this.model
         });
 
+        this.$el.append(filter.render().$el);
         this.$el.append(grid.render().$el);
         this.$el.append(paginator.render().$el);
 
