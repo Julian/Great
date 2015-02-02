@@ -37,7 +37,11 @@ great.Router = Backbone.Router.extend({
         great.artists = new great.ArtistsCollection();
 
         var self = this;
-        Promise.resolve(great.artists.fetch({dataType: "json"})).then(
+        Promise.resolve(
+            great.artists.fetch(
+                {dataType: "json", data: {fields: "mbid,rating"}}
+            )
+        ).then(
             function () {
                 great.artistsListView = new great.ArtistsListView(
                     {model: great.artists}
