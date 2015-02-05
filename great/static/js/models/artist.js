@@ -2,6 +2,7 @@
 
 
 great.Artist = Backbone.Model.extend({
+    urlRoot: "/great/music/artists/",
 });
 
 
