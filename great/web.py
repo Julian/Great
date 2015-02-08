@@ -15,14 +15,22 @@ CONFIG_HOME = FilePath(user_config_dir("Great"))
 
 
 def create_app(config=None):
-    if config is None:
-        config = configparser.ConfigParser()
-        config.read(CONFIG_HOME.child("config.ini").path)
-
     root = TreeResource(render=lambda request : Response(code=404))
     app = Application(router=Router(mapper=TraversalMapper(root=root)))
-    app.bin.globals["db"] = create_engine(config["db"]["url"]).connect()
+    app.bin.globals["db"] = engine_from_config(config=config).connect()
 
     music.init_app(app)
 
     return app
+
+
+def engine_from_config(config=None, **kwargs):
+    if config is None:
+        config = load_config()
+    return create_engine(config["db"]["url"], **kwargs)
+
+
+def load_config():
+    config = configparser.ConfigParser()
+    config.read(CONFIG_HOME.child("config.ini").path)
+    return config
