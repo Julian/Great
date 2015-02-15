@@ -8,8 +8,7 @@ Create Date: ${create_date}
 """
 
 from alembic import op
-import sqlalchemy
-${imports if imports else ""}
+import sqlalchemy${"\n" + imports if imports else ""}
 
 
 revision = ${repr(up_revision)}

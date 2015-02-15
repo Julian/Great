@@ -9,6 +9,10 @@ from great.web import engine_from_config, load_config
 
 
 CONFIG = load_config()
+CONTEXT_CONFIG = dict(
+    sqlalchemy_module_prefix="sqlalchemy.",
+    target_metadata=METADATA,
+)
 logging.config.fileConfig(context.config.config_file_name)
 
 
@@ -25,7 +29,7 @@ def run_migrations_offline(config):
 
     """
 
-    context.configure(url=config["db"]["url"], target_metadata=METADATA)
+    context.configure(url=config["db"]["url"], **CONTEXT_CONFIG)
 
     with context.begin_transaction():
         context.run_migrations()
@@ -40,10 +44,10 @@ def run_migrations_online(config):
 
     """
 
-    engine = engine_from_config(poolclass=pool.NullPool)
+    engine = engine_from_config(config=config, poolclass=pool.NullPool)
 
     with closing(engine.connect()) as connection:
-        context.configure(connection=connection, target_metadata=METADATA)
+        context.configure(connection=connection, **CONTEXT_CONFIG)
 
         with context.begin_transaction():
             context.run_migrations()
