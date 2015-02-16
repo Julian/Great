@@ -24,14 +24,15 @@ class Retriever(object):
         self.musicbrainz_client = musicbrainz_client
 
 
-def artist_from_musicbrainz(musicbrainz_artist):
+def artist_from_musicbrainz(musicbrainz_artist, **kwargs):
     return artists.insert().values(
         mbid=musicbrainz_artist["id"],
         name=musicbrainz_artist["name"],
+        **kwargs
     )
 
 
-def album_from_musicbrainz(release_group):
+def album_from_musicbrainz(release_group, **kwargs):
     type = release_group[u"primary-type"].lower()
     if type == u"album":
         type = u"lp"
@@ -45,4 +46,5 @@ def album_from_musicbrainz(release_group):
         release_date=datetime.strptime(release_date, "%Y-%m-%d").date(),
         type=type,
         compilation=compilation,
+        **kwargs
     )
