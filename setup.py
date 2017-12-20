@@ -26,8 +26,9 @@ setup(
     install_requires=[
         "Alchimia",
         "appdirs",
-        "configparser>=3.5.0b1",
+        "attrs",
         "Minion",
+        "pytoml",
         "SQLAlchemy",
         "Twisted",
         "txmusicbrainz",
