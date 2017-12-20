@@ -2,8 +2,8 @@ Alchimia
 Alembic
 appdirs
 attrs
-configparser>=3.5.0b2
 Minion
 SQLAlchemy
+pytoml
 Twisted
 txmusicbrainz

@@ -1,4 +1,4 @@
-import configparser
+import pytoml
 
 from appdirs import user_config_dir
 from minion.core import Application
@@ -31,6 +31,4 @@ def engine_from_config(config=None, **kwargs):
 
 
 def load_config():
-    config = configparser.ConfigParser()
-    config.read(CONFIG_HOME.child("config.ini").path)
-    return config
+    return pytoml.loads(CONFIG_HOME.child("config.toml").getContent())
