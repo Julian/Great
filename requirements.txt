@@ -1,7 +1,7 @@
 Alchimia
 Alembic
 appdirs
-characteristic>=14.2.0
+attrs
 configparser>=3.5.0b2
 Minion
 SQLAlchemy

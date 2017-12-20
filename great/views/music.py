@@ -2,12 +2,12 @@ from datetime import datetime
 from uuid import UUID
 import json
 
-from characteristic import Attribute, attributes
 from minion.renderers import JSON
 from minion.request import Response
 from minion.traversal import LeafResource, TreeResource
 from sqlalchemy import String
 from sqlalchemy.sql.expression import cast
+import attr
 
 from great.models import music
 from great.models.core import ModelManager, NotFound
@@ -19,14 +19,12 @@ def _uuid_to_str(obj):
     raise TypeError("{!r} is not JSON serializable".format(obj))
 
 
-@attributes(
-    [
-        Attribute(name="manager"),
-        Attribute(name="from_detail_json", default_value=json.load),
-        Attribute(name="for_detail_json", default_value=lambda model : model),
-    ],
-)
+@attr.s
 class ModelResource(object):
+
+    manager = attr.ib()
+    from_detail_json = attr.ib(default=json.load)
+    for_detail_json = attr.ib(default=lambda model: model)
 
     renderer = JSON(default=_uuid_to_str)
 
