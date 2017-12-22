@@ -5,48 +5,46 @@
 
   <title>Great</title>
 
-  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.css">
-  <link rel="stylesheet" href="/static/css/vendor/backgrid.css">
-  <link rel="stylesheet" href="/static/css/vendor/backgrid.filter.css">
-  <link rel="stylesheet" href="/static/css/vendor/backgrid.paginator.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.35/css/uikit.min.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.35/js/uikit.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.35/js/uikit-icons.min.js"></script>
 
   <link rel="stylesheet" href="/static/css/great.css">
 
-  <script src="//code.jquery.com/jquery-2.1.1.js"></script>
-  <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.js"></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.7.0/underscore.js"></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/backbone.js/1.1.2/backbone.js"></script>
-  <script src="/static/js/vendor/backbone.paginator.js"></script>
-  <script src="/static/js/vendor/backgrid.js"></script>
-  <script src="/static/js/vendor/backgrid.filter.js"></script>
-  <script src="/static/js/vendor/backgrid.paginator.js"></script>
-
-  <script src="/static/js/app.js"></script>
-  <script src="/static/js/models/artist.js"></script>
-  <script src="/static/js/views/artists.js"></script>
+  <script src="https://unpkg.com/vue"></script>
 </head>
 
 <body>
 
-  <nav class="navbar navbar-default" role="navigation">
-    <ul class="nav navbar-nav">
-      <li><a href="#">Home</a></li>
-      <li><a href="#">Artists</a></li>
-      <li><a href="#">Albums</a></li>
+  <nav class="uk-navbar-container" uk-navbar>
+    <div class="uk-navbar-left">
+      <ul class="uk-navbar-nav">
+        <li><a href="#">Home</a></li>
+        <li><a href="#">Artists</a></li>
+        <li><a href="#">Albums</a></li>
       </ul>
+    </div>
 
-    <form class="navbar-form navbar-right" role="search">
-      <div class="form-group">
-        <div class="input-group input-group-sm">
-          <input type="text" class="form-control" placeholder="Search">
-          <span class="input-group-btn">
-            <button type="button" class="btn btn-default" aria-label="Search">
-              <span class="glyphicon glyphicon-search" aria-hidden="true"></span>
-            </button>
-          </span>
-        </div>
+    <div class="uk-navbar-right">
+      <a class="uk-navbar-toggle"
+        href="#"
+        uk-search-icon
+        uk-toggle="target: .nav-overlay; animation: uk-animation-fade"></a>
+    </div>
+
+    <div class="nav-overlay uk-navbar-left uk-flex-1" hidden>
+      <div class="uk-navbar-item uk-width-expand">
+        <form class="uk-search uk-search-navbar uk-width-1-1">
+          <input class="uk-search-input" type="search" placeholder="Search..." autofocus>
+        </form>
       </div>
-    </form>
+
+      <a class="uk-navbar-toggle"
+         href="#"
+         uk-close
+         uk-toggle="target: .nav-overlay; animation: uk-animation-fade"></a>
+    </div>
   </nav>
 
   <div class="container">
