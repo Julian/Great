@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from hyperlink import URL
 from minion import wsgi
 from webtest import TestApp
 
@@ -17,18 +18,18 @@ class ApplicationTestMixin(object):
         METADATA.create_all(self.great.bin.provide("db"))
 
     def create(self, **params):
-        return self.app.post_json(self.URL, params=params).json
+        return self.app.post_json(self.url.to_text(), params=params).json
 
     def delete(self, **params):
-        return self.app.delete_json(self.URL, params=params)
+        return self.app.delete_json(self.url.to_text(), params=params)
 
     def list(self, **params):
-        return self.app.get(self.URL, params=params).json
+        return self.app.get(self.url.to_text(), params=params).json
 
 
 class TestArtist(ApplicationTestMixin, TestCase):
 
-    URL = b"/music/artists"
+    url = URL(path=[u"music", u"artists"], rooted=True)
 
     def test_create_artist(self):
         response = self.create(name="John Smith")
@@ -115,7 +116,7 @@ class TestArtist(ApplicationTestMixin, TestCase):
 
 class TestAlbum(ApplicationTestMixin, TestCase):
 
-    URL = b"/music/albums"
+    url = URL(path=[u"music", u"albums"], rooted=True)
 
     def test_create_album(self):
         response = self.create(name=u"Total Beats", release_date=u"2001-05-05")

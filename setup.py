@@ -27,6 +27,7 @@ setup(
         "Alchimia",
         "appdirs",
         "attrs",
+        "hyperlink",
         "Minion",
         "pytoml",
         "SQLAlchemy",
