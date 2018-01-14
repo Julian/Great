@@ -1,6 +1,7 @@
 import pytoml
 
 from appdirs import user_config_dir
+from minion.assets import Bin
 from minion.core import Application
 from minion.request import Response
 from minion.routing import Router, TraversalMapper
@@ -16,8 +17,11 @@ CONFIG_HOME = FilePath(user_config_dir("Great"))
 
 def create_app(config=None):
     root = TreeResource(render=lambda request : Response(code=404))
-    app = Application(router=Router(mapper=TraversalMapper(root=root)))
-    app.bin.globals["db"] = engine_from_config(config=config).connect()
+    connection = engine_from_config(config=config).connect()
+    bin = Bin().add(db=lambda bin: connection)
+    app = Application(
+        router=Router(mapper=TraversalMapper(root=root)), bin=bin,
+    )
 
     music.init_app(app)
 

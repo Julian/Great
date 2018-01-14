@@ -47,7 +47,7 @@ class ModelResource(object):
         if request.method == b"GET":
             fields = [
                 field
-                for raw in request.url.query.get(b"fields", ())
+                for raw in request.url.get(b"fields")
                 for field in raw.rstrip(b",").split(b",")
             ]
             content = self.manager.list(
@@ -71,7 +71,7 @@ def init_app(app):
         render=lambda request : Response("Music"),
     )
 
-    db = app.bin.globals["db"]
+    db = app.bin.provide("db")
     for table, detail_columns, from_detail_json, for_detail_json in (
         (
             music.albums,
