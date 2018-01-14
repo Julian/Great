@@ -17,8 +17,7 @@ CONFIG_HOME = FilePath(user_config_dir("Great"))
 
 def create_app(config=None):
     root = TreeResource(render=lambda request : Response(code=404))
-    connection = engine_from_config(config=config).connect()
-    bin = Bin().add(db=lambda bin: connection)
+    bin = Bin().with_globals(engine=engine_from_config(config=config))
     app = Application(
         router=Router(mapper=TraversalMapper(root=root)), bin=bin,
     )

@@ -71,7 +71,7 @@ def init_app(app):
         render=lambda request : Response("Music"),
     )
 
-    db = app.bin.provide("db")
+    db = app.bin.provide("engine").connect()
     for table, detail_columns, from_detail_json, for_detail_json in (
         (
             music.albums,

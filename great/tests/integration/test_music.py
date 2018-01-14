@@ -15,7 +15,7 @@ class ApplicationTestMixin(object):
         self.great = create_app(config=self.config)
         self.app = TestApp(wsgi.create_app(self.great))
 
-        METADATA.create_all(self.great.bin.provide("db"))
+        METADATA.create_all(self.great.bin.provide("engine").connect())
 
     def create(self, **params):
         return self.app.post_json(self.url.to_text(), params=params).json
