@@ -1,9 +1,9 @@
 from __future__ import absolute_import
 
+from filesystems import Path, native
 from minion.twisted import MinionResource
 from twisted.application import strports
 from twisted.python import usage
-from twisted.python.filepath import FilePath
 from twisted.web import server
 from twisted.web.static import File
 import alembic
@@ -33,19 +33,21 @@ class Options(usage.Options):
     ]
 
 
-def makeService(options):
+def makeService(options, fs=native.FS()):
     if options["migrate"]:
-        alembic_config = alembic.config.Config(FilePath("alembic.ini").path)
+        alembic_config = alembic.config.Config(
+            str(Path.cwd().descendant("alembic.ini")),
+        )
         alembic.command.upgrade(alembic_config, "head")
 
-    greatPath = FilePath(great.__file__).parent()
-    staticPath = greatPath.child("static")
-    templatesPath = greatPath.child("templates")
+    greatPath = Path.from_string(great.__file__).parent()
+    staticPath = greatPath.descendant("static")
+    templatesPath = greatPath.descendant("templates")
 
     rootResource = twisted.web.resource.Resource()
-    rootResource.putChild("", File(staticPath.child("index.html").path))
-    rootResource.putChild("static", File(staticPath.path))
-    rootResource.putChild("templates", File(templatesPath.path))
+    rootResource.putChild("", File(str(staticPath.descendant("index.html"))))
+    rootResource.putChild("static", File(str(staticPath)))
+    rootResource.putChild("templates", File(str(templatesPath)))
 
     rootResource.putChild("great", MinionResource(create_app()))
 
