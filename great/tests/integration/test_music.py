@@ -26,6 +26,12 @@ class ApplicationTestMixin(object):
     def list(self, **params):
         return self.app.get(self.url.to_text(), params=params).json
 
+    def tracked(self, **params):
+        return self.app.get(
+            self.url.child(u"tracked").to_text(),
+            params=params,
+        ).json
+
 
 class TestArtist(ApplicationTestMixin, TestCase):
 
@@ -92,6 +98,17 @@ class TestArtist(ApplicationTestMixin, TestCase):
             self.list(fields="mbid"), [
                 {u"id": 1, u"name": u"A", u"mbid": u"1" * 32},
                 {u"id": 2, u"name": u"B", u"mbid": None},
+            ],
+        )
+
+    def test_tracked_artists(self):
+        self.create(name=u"A", tracked=True)
+        self.create(name=u"B")
+        self.create(name=u"C", tracked=True)
+        self.assertEqual(
+            self.tracked(), [
+                {u"id": 1, u"name": u"A"},
+                {u"id": 3, u"name": u"C"},
             ],
         )
 

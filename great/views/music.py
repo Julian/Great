@@ -5,7 +5,7 @@ import json
 from minion.renderers import JSON
 from minion.request import Response
 from minion.traversal import LeafResource, TreeResource
-from sqlalchemy import String
+from sqlalchemy import String, select
 from sqlalchemy.sql.expression import cast
 import attr
 
@@ -31,6 +31,19 @@ class ModelResource(object):
     def get_child(self, name, request):
         if not name:
             return self
+        elif name == "tracked":
+            # FIXME
+            query = self.manager.db.execute(
+                select(self.manager._basic_fields).where(
+                    self.manager.table.c.tracked,
+                ),
+            )
+            return LeafResource(
+                render=lambda request: self.renderer.render(
+                    jsonable=[dict(each) for each in query.fetchall()],
+                    request=request,
+                ),
+            )
 
         id = int(name)
 
