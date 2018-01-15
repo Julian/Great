@@ -6,6 +6,7 @@ from sqlalchemy import pool
 
 from great import config
 from great.models.core import METADATA
+from great.web import engine_from_config
 
 
 CONFIG = config.load()
