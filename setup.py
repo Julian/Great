@@ -27,6 +27,7 @@ setup(
         "Alchimia",
         "appdirs",
         "attrs",
+        "filesystems",
         "hyperlink",
         "Minion",
         "pytoml",

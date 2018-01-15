@@ -2,6 +2,7 @@ Alchimia
 Alembic
 appdirs
 attrs
+filesystems
 Minion
 SQLAlchemy
 pytoml

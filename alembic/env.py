@@ -4,11 +4,11 @@ import logging.config
 from alembic import context
 from sqlalchemy import pool
 
+from great import config
 from great.models.core import METADATA
-from great.web import engine_from_config, load_config
 
 
-CONFIG = load_config()
+CONFIG = config.load()
 CONTEXT_CONFIG = dict(
     sqlalchemy_module_prefix="sqlalchemy.",
     target_metadata=METADATA,
