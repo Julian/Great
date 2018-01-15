@@ -42,5 +42,5 @@ setup(
     license="MIT",
     long_description=long_description,
     url=__url__,
-    vcversioner={"version_module_paths" : ["great/_version.py"]},
+    vcversioner={"version_module_paths": ["great/_version.py"]},
 )

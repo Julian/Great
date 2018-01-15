@@ -68,7 +68,7 @@ class ModelResource(object):
 def init_app(app):
 
     music_resource = TreeResource(
-        render=lambda request : Response("Music"),
+        render=lambda request: Response("Music"),
     )
 
     db = app.bin.provide("engine").connect()
@@ -99,7 +99,7 @@ def init_app(app):
                 music.artists.c.rating,
             ],
             json.load,
-            lambda artist : artist,
+            lambda artist: artist,
         ),
     ):
         music_resource.set_child(

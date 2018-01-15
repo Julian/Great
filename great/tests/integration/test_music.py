@@ -11,7 +11,7 @@ from great.web import create_app
 class ApplicationTestMixin(object):
     def setUp(self):
         super(ApplicationTestMixin, self).setUp()
-        self.config = {"db" : {"url" : "sqlite://"}}
+        self.config = {"db": {"url": "sqlite://"}}
         self.great = create_app(config=self.config)
         self.app = TestApp(wsgi.create_app(self.great))
 
@@ -35,28 +35,28 @@ class TestArtist(ApplicationTestMixin, TestCase):
         response = self.create(name="John Smith")
         self.assertEqual(
             response, {
-                u"id" : 1,
-                u"name" : u"John Smith",
-                u"mbid" : None,
-                u"rating" : None,
-                u"comments" : None,
-                u"pinned" : False,
-                u"created_at" : response[u"created_at"],
-                u"modified_at" : response[u"created_at"],
+                u"id": 1,
+                u"name": u"John Smith",
+                u"mbid": None,
+                u"rating": None,
+                u"comments": None,
+                u"pinned": False,
+                u"created_at": response[u"created_at"],
+                u"modified_at": response[u"created_at"],
             },
         )
 
     def test_detail_artist(self):
         response = self.create(name=u"John Smith")
         artist = {
-            u"id" : 1,
-            u"name" : u"John Smith",
-            u"mbid" : None,
-            u"rating" : None,
-            u"comments" : None,
-            u"pinned" : False,
-            u"created_at" : response[u"created_at"],
-            u"modified_at" : response[u"created_at"],
+            u"id": 1,
+            u"name": u"John Smith",
+            u"mbid": None,
+            u"rating": None,
+            u"comments": None,
+            u"pinned": False,
+            u"created_at": response[u"created_at"],
+            u"modified_at": response[u"created_at"],
         }
         self.assertEqual(response, artist)
 
@@ -68,7 +68,7 @@ class TestArtist(ApplicationTestMixin, TestCase):
 
     def test_delete_artist(self):
         self.create(name=b"Jim Smith")
-        self.assertEqual(self.list(), [{u"id" : 1, u"name" : u"Jim Smith"}])
+        self.assertEqual(self.list(), [{u"id": 1, u"name": u"Jim Smith"}])
 
         response = self.delete(id=1)
         self.assertEqual(response.status_code, 204)
@@ -80,8 +80,8 @@ class TestArtist(ApplicationTestMixin, TestCase):
         self.create(name=u"Tom Jones")
         self.assertEqual(
             self.list(), [
-                {u"id" : 1, u"name" : u"Jim Smith"},
-                {u"id" : 2, u"name" : u"Tom Jones"},
+                {u"id": 1, u"name": u"Jim Smith"},
+                {u"id": 2, u"name": u"Tom Jones"},
             ],
         )
 
@@ -90,8 +90,8 @@ class TestArtist(ApplicationTestMixin, TestCase):
         self.create(name=u"B")
         self.assertEqual(
             self.list(fields="mbid"), [
-                {u"id" : 1, u"name" : u"A", u"mbid" : u"1" * 32},
-                {u"id" : 2, u"name" : u"B", u"mbid" : None},
+                {u"id": 1, u"name": u"A", u"mbid": u"1" * 32},
+                {u"id": 2, u"name": u"B", u"mbid": None},
             ],
         )
 
@@ -101,12 +101,12 @@ class TestArtist(ApplicationTestMixin, TestCase):
         self.assertEqual(
             self.list(fields="mbid,rating,"), [
                 {
-                    u"id" : 1,
-                    u"name" : u"A",
-                    u"mbid" : u"1" * 32,
-                    "rating" : None,
+                    u"id": 1,
+                    u"name": u"A",
+                    u"mbid": u"1" * 32,
+                    "rating": None,
                 },
-                {u"id" : 2, u"name" : u"B", u"mbid" : None, "rating" : 8},
+                {u"id": 2, u"name": u"B", u"mbid": None, "rating": 8},
             ],
         )
 
@@ -122,32 +122,32 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
         self.assertEqual(
             response, {
-                u"id" : 1,
-                u"name" : u"Total Beats",
-                u"mbid" : None,
-                u"rating" : None,
-                u"comments" : None,
-                u"compilation" : False,
-                u"live" : False,
-                u"type" : u"lp",
-                u"pinned" : False,
-                u"release_date" : u"2001-05-05",
+                u"id": 1,
+                u"name": u"Total Beats",
+                u"mbid": None,
+                u"rating": None,
+                u"comments": None,
+                u"compilation": False,
+                u"live": False,
+                u"type": u"lp",
+                u"pinned": False,
+                u"release_date": u"2001-05-05",
             },
         )
 
     def test_detail_album(self):
         response = self.create(name=u"Total Beats", release_date=u"2001-05-05")
         album = {
-            u"id" : 1,
-            u"name" : u"Total Beats",
-            u"mbid" : None,
-            u"rating" : None,
-            u"comments" : None,
-            u"compilation" : False,
-            u"live" : False,
-            u"type" : u"lp",
-            u"pinned" : False,
-            u"release_date" : u"2001-05-05",
+            u"id": 1,
+            u"name": u"Total Beats",
+            u"mbid": None,
+            u"rating": None,
+            u"comments": None,
+            u"compilation": False,
+            u"live": False,
+            u"type": u"lp",
+            u"pinned": False,
+            u"release_date": u"2001-05-05",
         }
         self.assertEqual(response, album)
 
@@ -159,7 +159,7 @@ class TestAlbum(ApplicationTestMixin, TestCase):
 
     def test_delete_album(self):
         self.create(name=u"Total Beats", release_date=u"2001-05-05")
-        self.assertEqual(self.list(), [{u"id" : 1, u"name" : u"Total Beats"}])
+        self.assertEqual(self.list(), [{u"id": 1, u"name": u"Total Beats"}])
 
         response = self.delete(id=1)
         self.assertEqual(response.status_code, 204)
@@ -171,8 +171,8 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.create(name=u"Ace of Space", release_date=u"2002-02-02")
         self.assertEqual(
             self.list(), [
-                {u"id" : 1, u"name" : u"Total Beats"},
-                {u"id" : 2, u"name" : u"Ace of Space"},
+                {u"id": 1, u"name": u"Total Beats"},
+                {u"id": 2, u"name": u"Ace of Space"},
             ],
         )
 
@@ -181,8 +181,8 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.create(name=u"B")
         self.assertEqual(
             self.list(fields="mbid"), [
-                {u"id" : 1, u"name" : u"A", u"mbid" : u"1" * 32},
-                {u"id" : 2, u"name" : u"B", u"mbid" : None},
+                {u"id": 1, u"name": u"A", u"mbid": u"1" * 32},
+                {u"id": 2, u"name": u"B", u"mbid": None},
             ],
         )
 
@@ -192,12 +192,12 @@ class TestAlbum(ApplicationTestMixin, TestCase):
         self.assertEqual(
             self.list(fields="mbid,rating,"), [
                 {
-                    u"id" : 1,
-                    u"name" : u"A",
-                    u"mbid" : u"1" * 32,
-                    "rating" : None,
+                    u"id": 1,
+                    u"name": u"A",
+                    u"mbid": u"1" * 32,
+                    "rating": None,
                 },
-                {u"id" : 2, u"name" : u"B", u"mbid" : None, "rating" : 8},
+                {u"id": 2, u"name": u"B", u"mbid": None, "rating": 8},
             ],
         )
 

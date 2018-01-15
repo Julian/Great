@@ -9,7 +9,7 @@ from great.views import music
 
 
 def create_app(config=None):
-    root = TreeResource(render=lambda request : Response(code=404))
+    root = TreeResource(render=lambda request: Response(code=404))
     bin = Bin().with_globals(engine=engine_from_config(config=config))
     app = Application(
         router=Router(mapper=TraversalMapper(root=root)), bin=bin,
