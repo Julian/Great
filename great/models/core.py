@@ -2,6 +2,7 @@ from sqlalchemy import (
     Boolean, Column, DateTime, Integer, Unicode, UnicodeText,
     CheckConstraint, MetaData, Table, func, delete, sql, select,
 )
+import attr
 
 
 METADATA = MetaData()
@@ -11,31 +12,42 @@ class NotFound(Exception):
     pass
 
 
+@attr.s
 class ModelManager(object):
-    def __init__(self, db, table, detail_columns):
-        self.db = db
-        self.table = table
 
-        basic_fields = self._basic_fields = [table.c.id, table.c.name]
-        self._detail_query = select(basic_fields + list(detail_columns))
+    db = attr.ib()
+    table = attr.ib()
+    _detail_columns = attr.ib()
+
+    def __attrs_post_init__(self):
+        self._basic_fields = [self.table.c.id, self.table.c.name]
+        self._detail_query = select(
+            self._basic_fields + list(self._detail_columns),
+        )
+
+    def query(self, query, db):
+        return db.execute(query)
 
     def create(self, **kwargs):
-        result = self.db.execute(self.table.insert().values(**kwargs))
+        result = self.query(
+            query=self.table.insert().values(**kwargs),
+            db=self.db,
+        )
         id, = result.inserted_primary_key
         return self.detail(id=id)
 
     def delete(self, id):
-        self.db.execute(delete(self.table).where(self.table.c.id == id))
+        self.query(delete(self.table).where(self.table.c.id == id), db=self.db)
 
     def list(self, fields=()):
         fields = self._basic_fields + [
             getattr(self.table.c, field) for field in fields
         ]
-        return [dict(row) for row in self.db.execute(select(fields))]
+        return [dict(row) for row in self.query(select(fields), db=self.db)]
 
     def detail(self, id):
         query = self._detail_query.where(self.table.c.id == id)
-        model = self.db.execute(query).first()
+        model = self.query(query, db=self.db).first()
         if model is None:
             raise NotFound(id)
         return dict(model)
