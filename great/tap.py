@@ -6,6 +6,8 @@ from twisted.python import usage
 from twisted.python.filepath import FilePath
 from twisted.web import server
 from twisted.web.static import File
+import alembic
+import alembic.config
 import twisted.web.resource
 
 from great.web import create_app
@@ -13,6 +15,13 @@ import great
 
 
 class Options(usage.Options):
+    optFlags = [
+        [
+            "migrate",
+            "",
+            "Run `alembic upgrade head` first to migrate the DB if necessary.",
+        ],
+    ]
     optParameters = [
         [
             "access-log",
@@ -25,6 +34,10 @@ class Options(usage.Options):
 
 
 def makeService(options):
+    if options["migrate"]:
+        alembic_config = alembic.config.Config(FilePath("alembic.ini").path)
+        alembic.command.upgrade(alembic_config, "head")
+
     greatPath = FilePath(great.__file__).parent()
     staticPath = greatPath.child("static")
     templatesPath = greatPath.child("templates")
