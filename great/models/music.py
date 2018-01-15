@@ -20,6 +20,13 @@ artists = music_table(
         nullable=False,
         server_default=sql.expression.false(),
     ),
+    Column(
+        "spotify_uri",
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default=sql.expression.false(),
+    ),
     with_dates=True,
 )
 albums = music_table(
@@ -40,6 +47,13 @@ albums = music_table(
     ),
     Column(
         "live",
+        Boolean,
+        default=False,
+        nullable=False,
+        server_default=sql.expression.false(),
+    ),
+    Column(
+        "spotify_uri",
         Boolean,
         default=False,
         nullable=False,
