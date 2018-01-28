@@ -1,5 +1,6 @@
+from pkg_resources import DistributionNotFound, get_distribution
 try:
-    from great._version import __version__
-except ImportError:
+    __version__ = get_distribution(__name__).version
+except DistributionNotFound:
     pass
 __url__ = "https://github.com/Julian/Great"

@@ -22,7 +22,10 @@ classifiers = [
 setup(
     name="great",
     packages=find_packages(),
-    setup_requires=["vcversioner"],
+
+    setup_requires=["setuptools_scm"],
+    use_scm_version=True,
+
     install_requires=[
         "Alchimia",
         "appdirs",
@@ -42,5 +45,4 @@ setup(
     license="MIT",
     long_description=long_description,
     url=__url__,
-    vcversioner={"version_module_paths": ["great/_version.py"]},
 )
