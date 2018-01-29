@@ -1,8 +1,23 @@
 {
-  "name": "Great",
+  "name": "great",
+  "private": true,
+  "scripts": {
+    "lint": "eslint --ext .js,.vue src test/unit test/e2e/specs"
+  },
+  "dependencies": {
+  },
   "devDependencies": {
-    "grunt": "^0.4.5",
-    "grunt-bowercopy": "^1.2.0",
-    "grunt-contrib-clean": "^0.6.0"
+    "eslint": "^4.15.0",
+    "eslint-config-standard": "^10.2.1",
+    "eslint-friendly-formatter": "^3.0.0",
+    "eslint-loader": "^1.7.1",
+    "eslint-plugin-import": "^2.7.0",
+    "eslint-plugin-node": "^5.2.0",
+    "eslint-plugin-promise": "^3.4.0",
+    "eslint-plugin-standard": "^3.0.1",
+    "eslint-plugin-vue": "^4.0.0"
+  },
+  "engines": {
+    "npm": ">= 3.0.0"
   }
 }
