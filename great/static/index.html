@@ -3,16 +3,10 @@
 <head>
   <meta charset="utf-8">
   <title>Great</title>
-
   <link rel="stylesheet" href="https://unpkg.com/uikit/dist/css/uikit.css" />
-
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-  <script src="https://unpkg.com/uikit"></script>
-  <script src="https://unpkg.com/vue"></script>
 </head>
 
 <body>
-
   <nav class="uk-navbar-container" uk-navbar>
     <div class="uk-navbar-center">
       <ul class="uk-navbar-nav">
@@ -23,11 +17,29 @@
     </div>
   </nav>
 
-  <div class="container">
-    <div class="row-fluid">
-      <div id="content" class="span12"></div>
-    </div>
+  <div class="uk-container" id="app">
+    <table class="uk-table">
+      <caption>Radar</caption>
+      <thead>
+        <tr>
+          <th>Artist</th>
+          <th>Album</th>
+        </tr>
+      </thead>
+
+      <tbody v-for="album in albums">
+        <tr>
+          <td>{{ album.artist.name }}</td>
+          <td>{{ album.name }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/uikit"></script>
+  <script src="https://unpkg.com/vue"></script>
+
+  <script src="/static/js/app.js"></script>
 </body>
 </html>
