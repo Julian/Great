@@ -1,9 +1,0 @@
-{
-  "name": "Great",
-  "dependencies": {
-    "backbone.paginator": "~2.0.2",
-    "backgrid": "~0.3.5",
-    "backgrid-paginator": "master",
-    "backgrid-filter": "~0.3.5"
-  }
-}
