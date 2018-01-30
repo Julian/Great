@@ -2,9 +2,11 @@
   "name": "great",
   "private": true,
   "scripts": {
+    "build": "webpack --progress --hide-modules",
     "lint": "eslint --ext .js,.vue src test/unit test/e2e/specs"
   },
   "dependencies": {
+    "vue": "^2.5.11"
   },
   "devDependencies": {
     "eslint": "^4.15.0",
@@ -15,9 +17,7 @@
     "eslint-plugin-node": "^5.2.0",
     "eslint-plugin-promise": "^3.4.0",
     "eslint-plugin-standard": "^3.0.1",
-    "eslint-plugin-vue": "^4.0.0"
-  },
-  "engines": {
-    "npm": ">= 3.0.0"
+    "eslint-plugin-vue": "^4.0.0",
+    "webpack": "^3.6.0"
   }
 }
