@@ -1,33 +1,21 @@
 <template>
-  <div>
-    <nav class="uk-navbar-container" uk-navbar>
-      <div class="uk-navbar-center">
-        <ul class="uk-navbar-nav">
-          <li><a href="#">Home</a></li>
-          <li><a href="#">Radar</a></li>
-          <li><a href="#">Tracked</a></li>
-        </ul>
-      </div>
-    </nav>
+  <div class="uk-container" id="app">
+    <table class="uk-table">
+      <caption>Radar</caption>
+      <thead>
+        <tr>
+          <th>Artist</th>
+          <th>Album</th>
+        </tr>
+      </thead>
 
-    <div class="uk-container" id="app">
-      <table class="uk-table">
-        <caption>Radar</caption>
-        <thead>
-          <tr>
-            <th>Artist</th>
-            <th>Album</th>
-          </tr>
-        </thead>
-
-        <tbody v-for="album in albums" :key="album.id">
-          <tr>
-            <td>{{ album.artist.name }}</td>
-            <td>{{ album.name }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <tbody v-for="album in albums" :key="album.id">
+        <tr>
+          <td>{{ album.artist.name }}</td>
+          <td>{{ album.name }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 

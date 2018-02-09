@@ -1,6 +1,7 @@
 <template>
   <div id="app">
-    <router-view/>
+    <Navbar></Navbar>
+    <router-view></router-view>
   </div>
 </template>
 
@@ -8,10 +9,13 @@
 import UIkit from 'uikit';
 import Icons from 'uikit/dist/js/uikit-icons';
 
+import Navbar from '@/components/Navbar';
+
 UIkit.use(Icons);
 
 export default {
   name: 'App',
+  components: { Navbar },
 };
 </script>
 
