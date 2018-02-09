@@ -15,6 +15,5 @@ export default {
 };
 </script>
 
-<style lang="less">
-@import "../node_modules/uikit/src/less/uikit.theme.less";
+<style lang="less" src="uikit/src/less/uikit.theme.less">
 </style>
