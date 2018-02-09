@@ -14,3 +14,7 @@ export default {
   name: 'App',
 };
 </script>
+
+<style lang="less">
+@import "../node_modules/uikit/src/less/uikit.theme.less";
+</style>
