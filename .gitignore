@@ -1,2 +1,3 @@
 /great/static/bundle.js
 .cache-*
+!/frontend/build
