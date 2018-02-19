@@ -78,13 +78,11 @@ class ModelResource(object):
         return self.renderer.render(jsonable=content, request=request)
 
 
-def init_app(app):
+def init_app(bin, root):
 
-    music_resource = TreeResource(
-        render=lambda request: Response("Music"),
-    )
+    music_resource = TreeResource()
 
-    db = app.bin.provide("engine").connect()
+    db = bin.provide("engine").connect()
     for table, detail_columns, from_detail_json, for_detail_json in (
         (
             music.albums,
@@ -128,7 +126,7 @@ def init_app(app):
             )
         )
 
-    app.router.mapper.root.set_child("music", music_resource)
+    root.set_child("music", music_resource)
 
 
 def _album_from_json(detail):

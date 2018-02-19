@@ -9,13 +9,13 @@ from great.views import music
 
 
 def create_app(config=None):
-    root = TreeResource(render=lambda request: Response(code=404))
+    root = TreeResource()
     bin = Bin().with_globals(engine=engine_from_config(config=config))
     app = Application(
         router=Router(mapper=TraversalMapper(root=root)), bin=bin,
     )
 
-    music.init_app(app)
+    music.init_app(bin=bin, root=root)
 
     return app
 
