@@ -6,6 +6,7 @@ from minion.traversal import TreeResource
 from sqlalchemy import create_engine
 
 from great.views import music
+import great.config
 
 
 def create_app(config=None):
@@ -22,6 +23,5 @@ def create_app(config=None):
 
 def engine_from_config(config=None, **kwargs):
     if config is None:
-        from great import config
-        config = config.load()
+        config = great.config.load()
     return create_engine(config["db"]["url"], **kwargs)
