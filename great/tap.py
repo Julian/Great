@@ -47,9 +47,7 @@ def makeService(options, fs=native.FS()):
     rootResource = twisted.web.resource.Resource()
     rootResource.putChild("", File(str(staticPath.descendant("index.html"))))
     rootResource.putChild("static", File(str(staticPath)))
-    rootResource.putChild("templates", File(str(templatesPath)))
-
-    rootResource.putChild("great", MinionResource(create_app()))
+    rootResource.putChild("api", MinionResource(create_app()))
 
     site = server.Site(rootResource)
     return strports.service(description=options["port"], factory=site)
