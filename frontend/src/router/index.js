@@ -1,6 +1,7 @@
 import Vue from 'vue';
 import Router from 'vue-router';
 
+import Library from '@/components/Library';
 import Radar from '@/components/Radar';
 import Tracked from '@/components/Tracked';
 
@@ -12,6 +13,11 @@ export default new Router({
       path: '/radar',
       name: 'Radar',
       component: Radar,
+    },
+    {
+      path: '/library',
+      name: 'Library',
+      component: Library,
     },
     {
       path: '/tracked',
