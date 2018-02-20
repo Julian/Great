@@ -7,7 +7,7 @@ Vue.use(Router);
 export default new Router({
   routes: [
     {
-      path: '/',
+      path: '/radar',
       name: 'Radar',
       component: Radar,
     },
