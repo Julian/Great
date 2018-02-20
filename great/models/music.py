@@ -7,7 +7,10 @@ from great.models._guid import GUID
 
 
 def music_table(*args, **kwargs):
-    args += (Column("mbid", GUID, nullable=True, unique=True),)
+    args += (
+        Column("mbid", GUID, nullable=True, unique=True),
+        Column("spotify_uri", Unicode(), nullable=True, unique=True),
+    )
     return table(*args, **kwargs)
 
 
@@ -15,13 +18,6 @@ artists = music_table(
     "artists",
     Column(
         "tracked",
-        Boolean,
-        default=False,
-        nullable=False,
-        server_default=sql.expression.false(),
-    ),
-    Column(
-        "spotify_uri",
         Boolean,
         default=False,
         nullable=False,
@@ -47,13 +43,6 @@ albums = music_table(
     ),
     Column(
         "live",
-        Boolean,
-        default=False,
-        nullable=False,
-        server_default=sql.expression.false(),
-    ),
-    Column(
-        "spotify_uri",
         Boolean,
         default=False,
         nullable=False,
