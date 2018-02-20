@@ -1,19 +1,19 @@
 """
-Initial revision.
+Initial revision
 
-Revision ID: 13747a4fb942
-Revises: 2c5fab9f0068
-Create Date: 2018-01-14 23:10:55.163125
+Revision ID: 44359856d0a6
+Revises:
+Create Date: 2018-02-19 19:44:21.111145
 
 """
 
 from alembic import op
 import sqlalchemy
 
-import great.models
+import great.models._guid
 
 
-revision = "13747a4fb942"
+revision = "44359856d0a6"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -22,7 +22,11 @@ depends_on = None
 def upgrade():
     op.create_table(
         "albums",
-        sqlalchemy.Column("id", sqlalchemy.Integer(), nullable=False),
+        sqlalchemy.Column(
+            "id",
+            sqlalchemy.Integer(),
+            nullable=False,
+        ),
         sqlalchemy.Column(
             "name",
             sqlalchemy.Unicode(length=256),
@@ -67,8 +71,10 @@ def upgrade():
             nullable=False,
         ),
         sqlalchemy.Column("mbid", great.models._guid.GUID(), nullable=True),
+        sqlalchemy.Column("spotify_uri", sqlalchemy.Unicode(), nullable=True),
         sqlalchemy.PrimaryKeyConstraint("id"),
-        sqlalchemy.UniqueConstraint("mbid")
+        sqlalchemy.UniqueConstraint("mbid"),
+        sqlalchemy.UniqueConstraint("spotify_uri")
     )
     op.create_table(
         "artists",
@@ -93,10 +99,12 @@ def upgrade():
             nullable=False,
         ),
         sqlalchemy.Column("mbid", great.models._guid.GUID(), nullable=True),
+        sqlalchemy.Column("spotify_uri", sqlalchemy.Unicode(), nullable=True),
         sqlalchemy.Column("created_at", sqlalchemy.DateTime(), nullable=True),
         sqlalchemy.Column("modified_at", sqlalchemy.DateTime(), nullable=True),
         sqlalchemy.PrimaryKeyConstraint("id"),
         sqlalchemy.UniqueConstraint("mbid"),
+        sqlalchemy.UniqueConstraint("spotify_uri")
     )
     op.create_table(
         "album_artists",
@@ -107,8 +115,8 @@ def upgrade():
             sqlalchemy.Unicode(length=16),
             nullable=True,
         ),
-        sqlalchemy.ForeignKeyConstraint(["album_id"], ["albums.id"], ),
-        sqlalchemy.ForeignKeyConstraint(["artist_id"], ["artists.id"], ),
+        sqlalchemy.ForeignKeyConstraint(["album_id"], ["albums.id"]),
+        sqlalchemy.ForeignKeyConstraint(["artist_id"], ["artists.id"]),
         sqlalchemy.PrimaryKeyConstraint("album_id", "artist_id")
     )
 
