@@ -1,3 +1,3 @@
-/great/static/bundle.js
+/great/static/
 .cache-*
 !/frontend/build
