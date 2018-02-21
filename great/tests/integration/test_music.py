@@ -32,6 +32,12 @@ class ApplicationTestMixin(object):
             params=params,
         ).json
 
+    def test_invalid_json(self):
+        self.app.post(self.url.to_text(), params="", status=400)
+
+    def test_unknown_method(self):
+        self.app.request(self.url.to_text(), method=b"TRACE", status=405)
+
 
 class TestArtist(ApplicationTestMixin, TestCase):
 
@@ -127,9 +133,6 @@ class TestArtist(ApplicationTestMixin, TestCase):
             ],
         )
 
-    def test_unknown_method(self):
-        self.app.request(b"/music/artists", method=b"TRACE", status=405)
-
 
 class TestAlbum(ApplicationTestMixin, TestCase):
 
@@ -217,6 +220,3 @@ class TestAlbum(ApplicationTestMixin, TestCase):
                 {u"id": 2, u"name": u"B", u"mbid": None, "rating": 8},
             ],
         )
-
-    def test_unknown_method(self):
-        self.app.request(b"/music/albums", method=b"TRACE", status=405)

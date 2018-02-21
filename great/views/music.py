@@ -67,7 +67,10 @@ class ModelResource(object):
                 fields=fields,
             )
         elif request.method == b"POST":
-            new = self.from_detail_json(request.content)
+            try:
+                new = self.from_detail_json(request.content)
+            except ValueError:
+                return Response(code=400)
             content = self.for_detail_json(self.manager.create(**new))
         elif request.method == b"DELETE":
             self.manager.delete(id=json.load(request.content)[u"id"])
