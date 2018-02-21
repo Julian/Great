@@ -32,7 +32,7 @@ export default {
         {
           name: 'A Third Thing',
           artist: { name: 'A Different One' },
-          rating: 5
+          rating: 5,
         },
       ],
     };
