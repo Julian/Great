@@ -12,16 +12,18 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: 'Tracked',
   data() {
     return {
-      artists: [
-        { name: 'Someone' },
-        { name: 'Someone Else' },
-        { name: 'Someone Also Else' },
-      ],
+      artists: [],
     };
+  },
+  async created() {
+    const response = await axios.get('/api/music/artists/tracked');
+    this.artists = response.data;
   },
 };
 </script>
