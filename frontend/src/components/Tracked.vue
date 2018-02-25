@@ -1,5 +1,9 @@
 <template>
   <div class="uk-container" id="app">
+    <button class="uk-align-right uk-button uk-button-primary uk-button-large">
+      Add
+    </button>
+
     <table class="uk-table">
       <caption>Tracked</caption>
       <tbody v-for="artist in artists" :key="artist.id">
