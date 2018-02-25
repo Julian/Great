@@ -14,7 +14,9 @@
         <tr>
           <td>{{ album.artist.name }}</td>
           <td>{{ album.name }}</td>
-          <td>{{ album.rating }}</td>
+          <td>
+            <span v-for="n in album.rating" :key="n" uk-icon="icon: star"></span>
+          </td>
         </tr>
       </tbody>
     </table>
