@@ -1,7 +1,9 @@
 <template>
   <div id="app">
     <Navbar></Navbar>
-    <router-view></router-view>
+    <div class="uk-section uk-section-default">
+      <router-view></router-view>
+    </div>
   </div>
 </template>
 
