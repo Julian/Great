@@ -32,7 +32,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import Client from '@/great';
 
 export default {
   name: 'Tracked',
@@ -42,8 +42,8 @@ export default {
     };
   },
   async created() {
-    const response = await axios.get('/api/music/artists/tracked');
-    this.artists = response.data;
+    const client = new Client();
+    this.artists = await client.tracked();
   },
 };
 </script>
