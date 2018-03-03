@@ -42,8 +42,7 @@ export default {
     };
   },
   async created() {
-    const client = new Client();
-    this.artists = await client.tracked();
+    this.artists = new Client().tracked();
   },
 };
 </script>
