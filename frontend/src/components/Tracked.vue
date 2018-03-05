@@ -7,6 +7,10 @@
       Add
     </button>
 
+    <div id="add-tracked-artist" class="uk-modal-full uk-modal" uk-modal>
+      <artist-search></artist-search>
+    </div>
+
     <table class="uk-table">
       <caption>Tracked</caption>
       <tbody v-for="artist in artists" :key="artist.id">
@@ -15,27 +19,17 @@
         </tr>
       </tbody>
     </table>
-
-    <div id="add-tracked-artist" class="uk-modal-full uk-modal" uk-modal>
-      <div class="uk-modal-dialog uk-flex uk-flex-center uk-flex-middle" uk-height-viewport>
-        <button class="uk-modal-close-full" type="button" uk-close></button>
-        <form class="uk-search uk-search-large">
-          <input
-          class="uk-search-input uk-text-center"
-          type="Artist"
-          placeholder="Add Artist..."
-          autofocus>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 
 <script>
 import Client from '@/great';
 
+import ArtistSearch from '@/components/ArtistSearch';
+
 export default {
   name: 'Tracked',
+  components: { ArtistSearch },
   data() {
     return {
       artists: [],
