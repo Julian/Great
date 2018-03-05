@@ -21,7 +21,7 @@ classifiers = [
 
 setup(
     name="great",
-    packages=find_packages(),
+    packages=find_packages() + ["twisted.plugins"],
 
     setup_requires=["setuptools_scm"],
     use_scm_version=True,
