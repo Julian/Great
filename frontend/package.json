@@ -10,6 +10,7 @@
     },
     "dependencies": {
         "axios": "^0.18.0",
+        "spotify-web-api-js": "^0.23.0",
         "uikit": "^3.0.0-beta.39",
         "vue": "^2.5.11",
         "vue-router": "^3.0.1"
