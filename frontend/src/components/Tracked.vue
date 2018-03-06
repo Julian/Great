@@ -1,5 +1,5 @@
 <template>
-  <div class="uk-container" id="app">
+  <div class="uk-container">
     <button
       class="uk-align-right uk-button uk-button-primary uk-button-large"
       uk-toggle="target: #add-tracked-artist"
