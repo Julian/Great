@@ -10,14 +10,14 @@ Vue.use(Router);
 export default new Router({
   routes: [
     {
+      path: '/',
+      name: 'Library',
+      component: Library,
+    },
+    {
       path: '/radar',
       name: 'Radar',
       component: Radar,
-    },
-    {
-      path: '/library',
-      name: 'Library',
-      component: Library,
     },
     {
       path: '/tracked',
