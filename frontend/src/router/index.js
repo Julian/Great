@@ -11,17 +11,17 @@ export default new Router({
   routes: [
     {
       path: '/',
-      name: 'Library',
+      name: 'library',
       component: Library,
     },
     {
       path: '/radar',
-      name: 'Radar',
+      name: 'radar',
       component: Radar,
     },
     {
       path: '/tracked',
-      name: 'Tracked',
+      name: 'tracked',
       component: Tracked,
     },
   ],
