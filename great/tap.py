@@ -35,8 +35,9 @@ class Options(usage.Options):
 
 def makeService(options, fs=native.FS()):
     if options["migrate"]:
+        root = Path.from_string(__file__).sibling("alembic")
         alembic_config = alembic.config.Config(
-            str(Path.cwd().descendant("alembic.ini")),
+            str(root.descendant("config.ini")),
         )
         alembic.command.upgrade(alembic_config, "head")
 
