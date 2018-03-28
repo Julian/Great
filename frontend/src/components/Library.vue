@@ -24,20 +24,17 @@
 </template>
 
 <script>
+import Client from '@/great';
+
 export default {
-  name: 'Radar',
+  name: 'Library',
   data() {
     return {
-      albums: [
-        { name: 'Something', artist: { name: 'Someone' }, rating: 5 },
-        { name: 'Another Thing', artist: { name: 'Same One' }, rating: 3 },
-        {
-          name: 'A Third Thing',
-          artist: { name: 'A Different One' },
-          rating: 5,
-        },
-      ],
+      albums: [],
     };
+  },
+  async created() {
+    this.albums = new Client().library();
   },
 };
 </script>

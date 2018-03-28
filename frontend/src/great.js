@@ -8,4 +8,22 @@ export default class Client {
     const response = await axios.get(`${this.baseURL}/artists/tracked`);
     return response.data;
   }
+  library() {
+    return [
+      { name: 'Something', artist: { name: 'Someone' }, rating: 5 },
+      { name: 'Another Thing', artist: { name: 'Same One' }, rating: 3 },
+      {
+        name: 'A Third Thing',
+        artist: { name: 'A Different One' },
+        rating: 5,
+      },
+    ];
+  }
+  radar() {
+    return [
+      { name: 'Something', artist: { name: 'Someone' } },
+      { name: 'Another Thing', artist: { name: 'Same One' } },
+      { name: 'A Third Thing', artist: { name: 'A Different One' } },
+    ];
+  }
 }
