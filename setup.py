@@ -28,6 +28,7 @@ setup(
 
     install_requires=[
         "Alchimia",
+        "alembic",
         "appdirs",
         "attrs",
         "filesystems",
