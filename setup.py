@@ -21,7 +21,17 @@ classifiers = [
 
 setup(
     name="great",
-    packages=find_packages() + ["twisted.plugins"],
+
+    description="A ratings aggregator",
+    long_description=long_description,
+    url=__url__,
+
+    license="MIT",
+
+    author="Julian Berman",
+    author_email="Julian@GrayVines.com",
+
+    classifiers=classifiers,
 
     setup_requires=["setuptools_scm"],
     use_scm_version=True,
@@ -39,11 +49,7 @@ setup(
         "Twisted",
         "txmusicbrainz",
     ],
-    author="Julian Berman",
-    author_email="Julian@GrayVines.com",
-    classifiers=classifiers,
-    description="A ratings aggregator",
-    license="MIT",
-    long_description=long_description,
-    url=__url__,
+
+    packages=find_packages() + ["twisted.plugins"],
+    include_package_data=True,
 )
