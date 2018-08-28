@@ -4,6 +4,10 @@ export default class Client {
   constructor(baseURL = '/api/music') {
     this.baseURL = baseURL;
   }
+  async track() {
+    const response = await axios.put(`${this.baseURL}/artists/tracked`);
+    return response.data;
+  }
   async tracked() {
     const response = await axios.get(`${this.baseURL}/artists/tracked`);
     return response.data;
