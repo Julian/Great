@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from filesystems import Path, native
+from filesystems import Path
 from minion.twisted import MinionResource
 from twisted.application import strports
 from twisted.python import usage
@@ -33,7 +33,7 @@ class Options(usage.Options):
     ]
 
 
-def makeService(options, fs=native.FS()):
+def makeService(options):
     if options["migrate"]:
         root = Path.from_string(__file__).sibling("alembic")
         alembic_config = alembic.config.Config(

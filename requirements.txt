@@ -5,7 +5,7 @@ attrs==18.1.0
 Automat==0.7.0
 cached-property==1.4.3
 constantly==15.1.0
-filesystems==0.17.0
+filesystems==0.21.1
 future==0.16.0
 greenlet==0.4.12
 hyperlink==18.0.0
