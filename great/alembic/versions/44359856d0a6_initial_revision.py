@@ -30,7 +30,7 @@ def upgrade():
         sqlalchemy.Column(
             "name",
             sqlalchemy.Unicode(length=256),
-            nullable=True,
+            nullable=False,
         ),
         sqlalchemy.Column(
             "rating",
@@ -82,7 +82,7 @@ def upgrade():
         sqlalchemy.Column(
             "name",
             sqlalchemy.Unicode(length=256),
-            nullable=True,
+            nullable=False,
         ),
         sqlalchemy.Column("rating", sqlalchemy.Integer(), nullable=True),
         sqlalchemy.Column(

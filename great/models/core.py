@@ -67,7 +67,7 @@ def table(name, *args, **kwargs):
 def table_columns():
     return (
         Column("id", Integer, primary_key=True),
-        Column("name", Unicode(256)),
+        Column("name", Unicode(256), nullable=False),
 
         Column(
             "rating",
