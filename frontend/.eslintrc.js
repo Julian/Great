@@ -18,9 +18,7 @@ module.exports = {
   // check if imports actually resolve
   settings: {
     'import/resolver': {
-      webpack: {
-        config: 'build/webpack.base.conf.js'
-      }
+      webpack: {}
     }
   },
   // add your custom rules here

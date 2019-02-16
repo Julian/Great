@@ -13,6 +13,7 @@ export default class Client {
     return response.data;
   }
   library() {
+    /* eslint class-methods-use-this: "off" */
     return [
       { name: 'Something', artist: { name: 'Someone' }, rating: 5 },
       { name: 'Another Thing', artist: { name: 'Same One' }, rating: 3 },
@@ -24,6 +25,7 @@ export default class Client {
     ];
   }
   radar() {
+    /* eslint class-methods-use-this: "off" */
     return [
       { name: 'Something', artist: { name: 'Someone' } },
       { name: 'Another Thing', artist: { name: 'Same One' } },

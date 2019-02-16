@@ -26,9 +26,7 @@ export default {
   methods: {
     async doSearch() {
       const spotify = new SpotifyWebApi();
-      const results = await spotify.searchArtists(this.artist);
-      console.log('GOT!');
-      console.log(results);
+      await spotify.searchArtists(this.artist);
     },
   },
 };
