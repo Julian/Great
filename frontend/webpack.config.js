@@ -1,5 +1,7 @@
 const path = require('path')
+
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
+const FriendlyErrorsWebpackPlugin = require('friendly-errors-webpack-plugin')
 
 function resolve (dir) {
   return path.join(__dirname, dir)
@@ -35,6 +37,7 @@ module.exports = {
         ]
     },
     plugins: [
-        new VueLoaderPlugin()
+        new FriendlyErrorsWebpackPlugin(),
+        new VueLoaderPlugin(),
     ]
 }
