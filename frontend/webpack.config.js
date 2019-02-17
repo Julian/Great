@@ -1,7 +1,8 @@
 const path = require('path')
 
-const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const FriendlyErrorsWebpackPlugin = require('friendly-errors-webpack-plugin')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const VueLoaderPlugin = require('vue-loader/lib/plugin')
 
 function resolve (dir) {
   return path.join(__dirname, dir)
@@ -12,6 +13,7 @@ module.exports = {
         extensions: ['.js', '.vue', '.json'],
         alias: {
             '@': resolve('src/'),
+            vue: 'vue/dist/vue.js'
         }
     },
     module: {
@@ -38,6 +40,7 @@ module.exports = {
     },
     plugins: [
         new FriendlyErrorsWebpackPlugin(),
+        new HtmlWebpackPlugin({ template: resolve('index.html') }),
         new VueLoaderPlugin(),
     ]
 }
