@@ -2,7 +2,7 @@
     "name": "great",
     "private": true,
     "scripts": {
-        "start:dev": "webpack-dev-server --inline --progress",
+        "start:dev": "webpack-dev-server --inline --progress --mode development",
         "build:dev": "webpack --mode development",
         "build": "webpack --mode production",
         "lint": "eslint --ext .js,.vue src test/unit test/e2e/specs"
