@@ -36,7 +36,7 @@ export default {
     };
   },
   async created() {
-    this.artists = new Client().tracked();
+    this.artists = await new Client().tracked();
   },
 };
 </script>
