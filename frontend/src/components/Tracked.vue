@@ -36,7 +36,9 @@ export default {
     };
   },
   async created() {
-    this.artists = await new Client().tracked();
+    const artists = await new Client().tracked();
+    this.artists = artists.sort((one, two) =>
+      one.name.localeCompare(two.name));
   },
 };
 </script>
