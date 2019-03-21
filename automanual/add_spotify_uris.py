@@ -12,6 +12,12 @@ from titlecase import titlecase
 e = engine_from_config()
 
 
+def canonicalize(artist):
+    if artist.isupper():
+        return artist
+    return titlecase(artist)
+
+
 def spotify_uri(artist):
     return e.execute(
         sql.select(
@@ -20,17 +26,17 @@ def spotify_uri(artist):
                 music.artists.c.name,
                 music.artists.c.spotify_uri,
             ],
-        ).where(music.artists.c.name == artist),
+        ).where(music.artists.c.name.like(artist)),
     ).fetchone()
 
 
 with open("/dev/tty") as tty:
     for line in sys.stdin:
         as_dict = json.loads(line)
-        artist, uri = titlecase(as_dict["name"]), as_dict["uri"]
+        artist, uri = canonicalize(as_dict["name"]), as_dict["uri"]
         result = spotify_uri(artist)
         if result is None:
-            copy(artist)
+            print "Didn't find:", artist
         elif result.spotify_uri is None:
             e.execute(
                 sql.update(music.artists).where(
