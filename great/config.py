@@ -1,6 +1,6 @@
 from appdirs import user_config_dir
 from filesystems import Path, native
-import pytoml
+import toml
 
 
 _PATH = Path.from_string(user_config_dir(__package__)).descendant(
@@ -9,4 +9,4 @@ _PATH = Path.from_string(user_config_dir(__package__)).descendant(
 
 
 def load(path=_PATH, fs=native.FS()):
-    return pytoml.loads(fs.get_contents(path))
+    return toml.loads(fs.get_contents(path))
