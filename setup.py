@@ -2,8 +2,6 @@ import distutils.command.build
 import os
 import setuptools
 
-from great import __url__
-
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 FRONTEND = os.path.join(HERE, "frontend")
@@ -35,7 +33,7 @@ class BuildFrontend(setuptools.Command):
 
 
 setuptools.setup(
-    url=__url__,
+    url="https://github.com/Julian/Great",
     packages=setuptools.find_packages() + ["twisted.plugins"],
     use_scm_version=True,
     cmdclass={
