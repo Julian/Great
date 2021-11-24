@@ -1,6 +1,5 @@
 const path = require('path')
 
-const FriendlyErrorsWebpackPlugin = require('friendly-errors-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
 
@@ -21,7 +20,7 @@ module.exports = {
             {
                 enforce: 'pre',
                 test: /\.(js|vue)$/,
-                loader: 'eslint-loader',
+                loader: 'eslint-webpack-plugin',
                 exclude: /node_modules/
             },
             {
@@ -39,7 +38,6 @@ module.exports = {
         ]
     },
     plugins: [
-        new FriendlyErrorsWebpackPlugin(),
         new HtmlWebpackPlugin({ template: resolve('index.html') }),
         new VueLoaderPlugin(),
     ]
