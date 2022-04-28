@@ -28,7 +28,7 @@ python-editor==1.0.4      # via alembic
 six==1.14.0               # via automat, pyrsistent, python-dateutil
 sqlalchemy==1.3.16        # via alchimia, alembic, great (setup.py)
 toml==0.10.0              # via great (setup.py)
-twisted==22.2.0           # via alchimia, great (setup.py)
+twisted==22.4.0           # via alchimia, great (setup.py)
 txmusicbrainz==0.1.0      # via great (setup.py)
 werkzeug==1.0.1           # via minion
 zope.interface==5.1.0     # via filesystems, twisted
