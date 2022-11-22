@@ -39,7 +39,7 @@ incremental==21.3.0
     # via twisted
 itsdangerous==2.1.2
     # via minion
-mako==1.2.0
+mako==1.2.2
     # via alembic
 markupsafe==2.1.1
     # via mako
