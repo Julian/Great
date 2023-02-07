@@ -27,7 +27,7 @@ constantly==15.1.0
     # via twisted
 filesystems==0.26.0
     # via great (setup.py)
-future==0.18.2
+future==0.18.3
     # via minion
 hyperlink==21.0.0
     # via
