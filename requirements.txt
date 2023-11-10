@@ -58,7 +58,7 @@ sqlalchemy==1.4.36
     #   great (setup.py)
 toml==0.10.2
     # via great (setup.py)
-twisted==22.10.0
+twisted==23.10.0
     # via
     #   alchimia
     #   great (setup.py)
