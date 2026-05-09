@@ -81,8 +81,14 @@ def typing(session):
     """
     Check static types with ty.
     """
-    session.install("ty")
-    session.run("ty", "check", PACKAGE)
+    session.run_install(
+        "uv",
+        "sync",
+        "--group=typing",
+        f"--python={session.virtualenv.location}",
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
+    )
+    session.run("ty", "check", *session.posargs, PACKAGE)
 
 
 @session(tags=["build"])
