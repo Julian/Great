@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Great{% endblock %}
+{% block content %}
+<h2>Lists</h2>
+{% if not lists %}<p>No lists configured.</p>{% endif %}
+<ul class="list-index">
+  {% for data in lists %}
+  <li>
+    <a href="lists/{{ data.config.name }}.html">{{ data.config.name }}</a>
+    <small>
+      {{ data.ranked|length }} items · {{ data.comparison_count }} comparisons
+      {% if data.config.description %} · {{ data.config.description }}{% endif %}
+    </small>
+  </li>
+  {% endfor %}
+</ul>
+
+{% if recent_log %}
+<h2>Recently consumed</h2>
+<ul class="diary-recent">
+  {% for entry in recent_log %}
+  <li>
+    <time>{{ entry.ts.date() }}</time> —
+    <a href="items/{{ entry.item|slug }}.html">
+      {{ item_index[entry.item].title if entry.item in item_index else entry.item }}
+    </a>
+    <small>({{ entry.status }})</small>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

@@ -1,3 +1,17 @@
-/great/static/
-.cache-*
-!/frontend/build
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv / venv
+.venv/
+
+# Build / dist output (static site + packaging)
+/dist/
+/build/
+
+# Per-checkout state used by importers (not committed)
+/.great/

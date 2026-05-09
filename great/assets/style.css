@@ -1,0 +1,97 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+  max-width: 60rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  line-height: 1.5;
+  color: #222;
+}
+
+header {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+header h1 {
+  display: inline-block;
+  margin: 0 1.5rem 0 0;
+  font-size: 1.5rem;
+}
+
+header h1 a { color: inherit; text-decoration: none; }
+
+header nav { display: inline-block; }
+header nav a {
+  margin-right: 1rem;
+  text-decoration: none;
+  color: #666;
+}
+header nav a:hover { color: #222; text-decoration: underline; }
+
+h2 { margin-top: 1.5rem; }
+h3 { margin-top: 1.25rem; }
+
+table.ranked {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+table.ranked th,
+table.ranked td {
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+table.ranked th { background: #f7f7f7; font-weight: 600; }
+
+table.ranked td.num,
+table.ranked th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+table.ranked td.tier,
+table.ranked th.tier {
+  font-weight: 700;
+  text-align: center;
+  width: 2.5rem;
+}
+
+td.tier-S { color: #c8a000; }
+td.tier-A { color: #2e7d32; }
+td.tier-B { color: #2d5fa0; }
+td.tier-C { color: #6c757d; }
+td.tier-D { color: #b04545; }
+
+ul.list-index,
+ul.diary,
+ul.queue,
+ul.diary-recent {
+  list-style: none;
+  padding: 0;
+}
+
+ul.list-index li,
+ul.diary li,
+ul.queue li,
+ul.diary-recent li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f4f4f4;
+}
+
+small { color: #777; }
+
+code {
+  background: #f4f4f4;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+a { color: #2d5fa0; }
+a:hover { text-decoration: underline; }

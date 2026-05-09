@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Queue — Great{% endblock %}
+{% block content %}
+<h2>Want to consume</h2>
+{% set anything = false %}
+{% for data in lists %}{% if data.wants %}{% set anything = true %}
+<h3>{{ data.config.name }}</h3>
+<ul class="queue">
+  {% for w in data.wants %}
+  <li>
+    <a href="items/{{ w.item|slug }}.html">
+      {{ item_index[w.item].title if w.item in item_index else w.item }}
+    </a>
+    <small>added {{ w.added }} · priority {{ w.priority }}</small>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}{% endfor %}
+{% if not anything %}<p>Nothing in the queue.</p>{% endif %}
+{% endblock %}

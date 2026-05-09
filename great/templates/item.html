@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ item.title }} — Great{% endblock %}
+{% block content %}
+<h2>{{ item.title }}{% if item.year %} <small>({{ item.year }})</small>{% endif %}</h2>
+<p><small>kind: {{ item.kind }} · id: <code>{{ item.id }}</code></small></p>
+
+{% if in_lists %}
+<h3>Ranked</h3>
+<ul>
+  {% for entry in in_lists %}
+  <li>
+    <a href="../lists/{{ entry.config.name }}.html">{{ entry.config.name }}</a>:
+    {% if entry.tier %}<span class="tier-{{ entry.tier }}">[{{ entry.tier }}]</span>{% endif %}
+    rank {{ entry.rank }} of {{ entry.total }}
+    <small>(score {{ "%+.2f"|format(entry.score.mean) }} ± {{ "%.2f"|format(entry.score.variance ** 0.5) }})</small>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if log_entries %}
+<h3>Diary</h3>
+<ul>
+  {% for entry in log_entries %}
+  <li>
+    <time>{{ entry.ts.date() }}</time> — {{ entry.status }}
+    {% if entry.notes %}<br><em>{{ entry.notes }}</em>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if metadata %}
+<h3>Metadata</h3>
+<dl>
+  {% for k, v in metadata.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+</dl>
+{% endif %}
+{% endblock %}

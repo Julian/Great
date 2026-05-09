@@ -1,0 +1,10 @@
+theme = "default"
+
+[[lists]]
+name = "movies"
+kind = "movie"
+description = "All-time movie favorites"
+
+[[lists]]
+name = "tv"
+kind = "tv"

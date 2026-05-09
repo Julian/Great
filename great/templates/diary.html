@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Diary — Great{% endblock %}
+{% block content %}
+<h2>Diary</h2>
+{% if not log_entries %}<p>No entries yet.</p>{% endif %}
+<ul class="diary">
+  {% for entry in log_entries %}
+  <li>
+    <time>{{ entry.ts.date() }}</time> —
+    <a href="items/{{ entry.item|slug }}.html">
+      {{ item_index[entry.item].title if entry.item in item_index else entry.item }}
+    </a>
+    <small>({{ entry.status }})</small>
+    {% if entry.notes %}<br><em>{{ entry.notes }}</em>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

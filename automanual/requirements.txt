@@ -1,3 +1,0 @@
-pyperclip
-spotipy
-titlecase
