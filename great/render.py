@@ -2,13 +2,16 @@
 
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import jinja2
 
 from great.ranking import infer, rescale_to_quantiles
 from great.store import Store
+
+if TYPE_CHECKING:
+    from great.models import LogEntry
 
 TIER_LETTERS = ("D", "C", "B", "A", "S")
 N_QUANTILES = len(TIER_LETTERS)
@@ -56,7 +59,7 @@ def build_site(store: Store, out: Path) -> None:
 
     items_dir = out / "items"
     items_dir.mkdir(exist_ok=True)
-    item_log: dict[str, list] = {}
+    item_log: dict[str, list[LogEntry]] = {}
     for entry in log_entries:
         item_log.setdefault(entry.item, []).append(entry)
     for item in items_by_id.values():

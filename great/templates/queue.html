@@ -2,8 +2,8 @@
 {% block title %}Queue — Great{% endblock %}
 {% block content %}
 <h2>Want to consume</h2>
-{% set anything = false %}
-{% for data in lists %}{% if data.wants %}{% set anything = true %}
+{% set ns = namespace(anything=false) %}
+{% for data in lists %}{% if data.wants %}{% set ns.anything = true %}
 <h3>{{ data.config.name }}</h3>
 <ul class="queue">
   {% for w in data.wants %}
@@ -16,5 +16,5 @@
   {% endfor %}
 </ul>
 {% endif %}{% endfor %}
-{% if not anything %}<p>Nothing in the queue.</p>{% endif %}
+{% if not ns.anything %}<p>Nothing in the queue.</p>{% endif %}
 {% endblock %}

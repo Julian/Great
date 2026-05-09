@@ -117,6 +117,16 @@ def test_queue_shows_wants(populated, tmp_path):
     html = (out / "queue.html").read_text()
     assert "Severance" in html
     assert "high" in html
+    assert "Nothing in the queue" not in html
+
+
+def test_queue_empty_state_when_no_wants(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    out = tmp_path / "dist"
+    build_site(store, out)
+    html = (out / "queue.html").read_text()
+    assert "Nothing in the queue" in html
 
 
 def test_item_page_shows_metadata_and_diary(populated, tmp_path):

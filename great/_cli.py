@@ -59,7 +59,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv tool install git+https://github.com/Julian/Great
+      - run: uv tool install great
       - run: great build
       - uses: actions/upload-pages-artifact@v3
         with:
