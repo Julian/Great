@@ -57,6 +57,46 @@ async def test_tie_submits_single_group():
 
 
 @pytest.mark.asyncio
+async def test_number_sends_focused_item_to_rank():
+    app = RankApp(_movies("a", "b", "c", "d"))
+    async with app.run_test() as pilot:
+        await pilot.press("j", "j", "j")
+        await pilot.press("1")
+        await pilot.press("enter")
+    assert app.result == [[3], [0], [1], [2]]
+
+
+@pytest.mark.asyncio
+async def test_number_cursor_lands_on_row_below_placed():
+    app = RankApp(_movies("a", "b", "c", "d"))
+    async with app.run_test() as pilot:
+        await pilot.press("j", "j", "j")
+        await pilot.press("1")
+        await pilot.press("J")
+        await pilot.press("enter")
+    assert app.result == [[3], [1], [0], [2]]
+
+
+@pytest.mark.asyncio
+async def test_number_to_last_position_leaves_cursor_on_placed():
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test() as pilot:
+        await pilot.press("3")
+        await pilot.press("K")
+        await pilot.press("enter")
+    assert app.result == [[1], [0], [2]]
+
+
+@pytest.mark.asyncio
+async def test_number_out_of_range_is_noop():
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test() as pilot:
+        await pilot.press("5")
+        await pilot.press("enter")
+    assert app.result == [[0], [1], [2]]
+
+
+@pytest.mark.asyncio
 async def test_cancel_returns_none():
     app = RankApp(_movies("a", "b"))
     async with app.run_test() as pilot:

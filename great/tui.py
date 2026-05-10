@@ -35,6 +35,11 @@ class RankApp(App):
         Binding("k,up", "cursor_up", "Up"),
         Binding("J,shift+down", "move_down", "Move ↓", priority=True),
         Binding("K,shift+up", "move_up", "Move ↑", priority=True),
+        Binding("1", "move_to(1)", "→ rank", priority=True, show=True),
+        *(
+            Binding(str(n), f"move_to({n})", "", priority=True, show=False)
+            for n in range(2, 10)
+        ),
         Binding("t", "tie", "Tie", priority=True),
         Binding("enter", "submit", "Submit", priority=True),
         Binding("q,escape", "cancel", "Cancel", priority=True),
@@ -51,7 +56,8 @@ class RankApp(App):
         yield Header()
         yield Label(
             "Rank from best to worst. "
-            "j/k focus, J/K move, t=tie, Enter submit, q cancel.",
+            "j/k focus, J/K move, 1-9 send to rank, "
+            "t=tie, Enter submit, q cancel.",
             id="hint",
         )
         yield ListView(
@@ -103,6 +109,22 @@ class RankApp(App):
         if idx > 0:
             self._swap(idx - 1, idx)
             self._list.action_cursor_up()
+
+    def action_move_to(self, position: int) -> None:
+        """
+        Send the focused item to rank ``position`` (1-indexed).
+
+        No-op when ``position`` is outside the current cluster size.
+        """
+        target = position - 1
+        if not 0 <= target < len(self._order):
+            return
+        while (self._list.index or 0) > target:
+            self.action_move_up()
+        while (self._list.index or 0) < target:
+            self.action_move_down()
+        if target + 1 < len(self._order):
+            self._list.action_cursor_down()
 
     def action_tie(self) -> None:
         """Submit the cluster as a single indistinguishable tie group."""
