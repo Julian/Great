@@ -75,10 +75,12 @@ class RankApp(App):
     def _list(self) -> ListView:
         return self.query_one("#rank-list", ListView)
 
-    def _refresh(self, focus: int) -> None:
-        self._list.clear()
-        self._list.extend(self._build_items())
-        self._list.index = focus
+    def _swap(self, a: int, b: int) -> None:
+        self._order[a], self._order[b] = self._order[b], self._order[a]
+        children = self._list.children
+        for pos in (a, b):
+            label = children[pos].query_one(Label)
+            label.update(self._row_label(pos, self._items[self._order[pos]]))
 
     def action_cursor_down(self) -> None:
         """Move focus down."""
@@ -92,21 +94,15 @@ class RankApp(App):
         """Move the focused item down one rank."""
         idx = self._list.index or 0
         if idx + 1 < len(self._order):
-            self._order[idx], self._order[idx + 1] = (
-                self._order[idx + 1],
-                self._order[idx],
-            )
-            self._refresh(idx + 1)
+            self._swap(idx, idx + 1)
+            self._list.action_cursor_down()
 
     def action_move_up(self) -> None:
         """Move the focused item up one rank."""
         idx = self._list.index or 0
         if idx > 0:
-            self._order[idx], self._order[idx - 1] = (
-                self._order[idx - 1],
-                self._order[idx],
-            )
-            self._refresh(idx - 1)
+            self._swap(idx - 1, idx)
+            self._list.action_cursor_up()
 
     def action_tie(self) -> None:
         """Submit the cluster as a single indistinguishable tie group."""
