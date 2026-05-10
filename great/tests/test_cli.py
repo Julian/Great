@@ -116,6 +116,44 @@ def test_run_rank_loop_records_tie(tmp_path):
     assert c.ordering == [[0, 1]]
 
 
+def test_run_rank_loop_orders_cluster_by_descending_mean(tmp_path):
+    items = [
+        Item(id="tt1", kind="movie", title="Anora", year=2024),
+        Item(id="tt2", kind="movie", title="Casablanca", year=1942),
+    ]
+    store = _setup_movies(tmp_path, items=items)
+
+    seen: list[list[str]] = []
+
+    def session(cluster):
+        seen.append([item.id for item in cluster])
+        if len(seen) == 1:
+            return [[1], [0]]
+        return None
+
+    run_rank_loop(store, "movies", session=session, max_iters=5)
+
+    assert len(seen) == 2
+    assert seen[1][0] == "tt2"
+
+
+def test_run_rank_loop_stops_when_ranking_is_settled(tmp_path):
+    items = [
+        Item(id=f"tt{i}", kind="movie", title=f"M{i}", year=2000 + i)
+        for i in range(6)
+    ]
+    store = _setup_movies(tmp_path, items=items)
+
+    appended = run_rank_loop(
+        store,
+        "movies",
+        session=lambda cluster: [[i] for i in range(len(cluster))],
+        max_iters=1000,
+    )
+
+    assert 0 < appended < 100
+
+
 def test_run_rank_loop_refuses_too_few_items(tmp_path):
     _setup_movies(
         tmp_path,

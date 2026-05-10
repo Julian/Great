@@ -102,13 +102,74 @@ def test_select_cluster_seeds_on_highest_variance():
     assert "d" in cluster
 
 
-def test_select_cluster_singleton_falls_back_to_neighbor():
+def test_select_cluster_well_separated_returns_singleton():
+    items = [_movie(c) for c in "abcdefghij"]
+    scores = {
+        i.id: Score(float(ord(i.id) - ord("a")) * 10.0, 0.01) for i in items
+    }
+    cluster = select_cluster(scores, items, max_k=5)
+    assert len(cluster) == 1
+
+
+def test_select_cluster_high_variance_seed_admits_neighbors():
     items = [_movie(c) for c in "abcdef"]
     scores = {i.id: Score(float(ord(i.id) - ord("a")), 1e-9) for i in items}
     scores["c"] = Score(2.0, 5.0)
     cluster = select_cluster(scores, items, max_k=3)
     assert "c" in cluster
     assert len(cluster) >= 2
+
+
+def test_select_cluster_small_well_separated_returns_singleton():
+    items = [_movie(c) for c in "abcde"]
+    scores = {
+        i.id: Score(float(ord(i.id) - ord("a")) * 10.0, 0.01) for i in items
+    }
+    cluster = select_cluster(scores, items, max_k=5)
+    assert len(cluster) == 1
+
+
+def test_select_cluster_small_mutually_confusable_returns_all():
+    items = [_movie(c) for c in "abcde"]
+    scores = {i.id: Score(0.0, 1.0) for i in items}
+    cluster = select_cluster(scores, items, max_k=5)
+    assert sorted(cluster) == sorted(["a", "b", "c", "d", "e"])
+
+
+def test_select_cluster_force_random_seed_stays_in_top_uncertain():
+    items = [_movie(c) for c in "abcdefghij"]
+    scores = {i.id: Score(float(ord(i.id)), 0.1) for i in items}
+    scores["a"] = Score(0.0, 100.0)
+    scores["b"] = Score(98.0, 50.0)
+    scores["c"] = Score(99.0, 25.0)
+
+    top = {"a", "b", "c"}
+    rng = random.Random(42)
+    for _ in range(20):
+        cluster = select_cluster(
+            scores,
+            items,
+            max_k=3,
+            rng=rng,
+            force_random_seed=True,
+        )
+        assert cluster[0] in top
+
+
+def test_select_cluster_orders_by_descending_confusability():
+    items = [_movie(c) for c in "abcde"] + [_movie("seed")]
+    scores = {
+        "seed": Score(0.0, 1.0),
+        "a": Score(0.1, 0.01),
+        "b": Score(0.5, 0.01),
+        "c": Score(1.5, 0.01),
+        "d": Score(3.0, 0.01),
+        "e": Score(5.0, 0.01),
+    }
+    cluster = select_cluster(scores, items, max_k=3)
+    assert cluster[0] == "seed"
+    assert cluster[1] == "a"
+    assert cluster[2] == "b"
 
 
 def test_select_cluster_max_k_too_small():

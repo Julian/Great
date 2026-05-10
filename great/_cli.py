@@ -300,6 +300,9 @@ def run_rank_loop(
             rng=rng,
             force_random_seed=force_random,
         )
+        if len(cluster_ids) < MIN_K:
+            break
+        cluster_ids.sort(key=lambda i: scores[i].mean, reverse=True)
         cluster = [by_id[i] for i in cluster_ids]
 
         result = session(cluster)

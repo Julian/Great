@@ -7,6 +7,7 @@ and decides which items the user should be asked about next.
 """
 
 from typing import NamedTuple
+import math
 import random
 
 import choix
@@ -16,8 +17,8 @@ from great.models import Comparison, Item
 
 PRIOR_ALPHA = 1.0
 COLD_START_VARIANCE = 1.0 / PRIOR_ALPHA
-CI_Z = 1.96
 MIN_K = 2
+MIN_CONFUSABILITY = 0.15
 
 
 class Score(NamedTuple):
@@ -69,61 +70,71 @@ def select_cluster(
     force_random_seed: bool = False,
 ) -> list[str]:
     """
-    Pick a cluster of 2..``max_k`` items to compare next.
+    Pick a cluster of items to compare next, size up to ``max_k``.
 
-    Cold-start (items <= ``max_k``) returns everything; otherwise we
-    seed on the highest-variance item and greedily grow the cluster
-    by overlapping credible intervals. ``force_random_seed`` replaces
-    the variance-greedy seed with a uniform pick to escape fixed
-    points (the caller is expected to engage this every few rounds).
+    Seeds on the highest-variance item and admits other items whose
+    posterior is confusable with the seed's -- ``confusability`` being
+    ``min(p, 1-p)`` where ``p = P(s_seed > s_cand)`` under the normal
+    posterior approximation. Candidates are visited in order of
+    descending confusability, so the cluster captures the items most
+    likely to swap places with the seed.
+
+    May return a singleton ``[seed]`` when no other item meets
+    :data:`MIN_CONFUSABILITY` -- the seed is well-separated from
+    everything and ranking is effectively settled. Callers should
+    treat that as a signal to stop asking.
+
+    ``force_random_seed`` replaces the variance-greedy seed with a
+    uniform pick *among the ``max_k`` most-uncertain items*, to escape
+    fixed points without spuriously seeding on a well-separated item
+    (which would always collapse to a singleton). The caller is
+    expected to engage this every few rounds.
     """
     if max_k < MIN_K:
         raise ValueError(f"max_k must be at least {MIN_K}")
     if not items:
         return []
-    if len(items) <= max_k:
-        return [item.id for item in items]
 
     rng = rng or random.Random()  # noqa: S311 (not security-sensitive)
-    seed = (
-        rng.choice(items)
-        if force_random_seed
-        else max(
+    if force_random_seed:
+        top_uncertain = sorted(
             items,
             key=lambda i: scores[i.id].variance,
-        )
-    )
+            reverse=True,
+        )[:max_k]
+        seed = rng.choice(top_uncertain)
+    else:
+        seed = max(items, key=lambda i: scores[i.id].variance)
     seed_score = scores[seed.id]
-    seed_sd = seed_score.variance**0.5
-    cluster_lo = seed_score.mean - CI_Z * seed_sd
-    cluster_hi = seed_score.mean + CI_Z * seed_sd
+
+    scored_candidates = [
+        (_confusability(seed_score, scores[i.id]), i.id)
+        for i in items
+        if i.id != seed.id
+    ]
+    scored_candidates.sort(reverse=True)
+
     cluster = [seed.id]
-
-    candidates = sorted(
-        (i for i in items if i.id != seed.id),
-        key=lambda i: scores[i.id].variance,
-        reverse=True,
-    )
-    for cand in candidates:
-        if len(cluster) >= max_k:
+    for conf, cand_id in scored_candidates:
+        if len(cluster) >= max_k or conf < MIN_CONFUSABILITY:
             break
-        s = scores[cand.id]
-        sd = s.variance**0.5
-        cand_lo = s.mean - CI_Z * sd
-        cand_hi = s.mean + CI_Z * sd
-        if cand_hi >= cluster_lo and cand_lo <= cluster_hi:
-            cluster.append(cand.id)
-            cluster_lo = min(cluster_lo, cand_lo)
-            cluster_hi = max(cluster_hi, cand_hi)
-
-    if len(cluster) == 1:
-        nearest = min(
-            (i for i in items if i.id != seed.id),
-            key=lambda i: abs(scores[i.id].mean - seed_score.mean),
-        )
-        cluster.append(nearest.id)
-
+        cluster.append(cand_id)
     return cluster
+
+
+def _confusability(a: Score, b: Score) -> float:
+    """
+    Posterior probability the apparently-worse item is actually better.
+
+    Computes ``min(P(s_a > s_b), P(s_b > s_a))`` under a
+    normal-difference approximation. 0.5 = totally uncertain; 0 =
+    well-separated.
+    """
+    diff_var = a.variance + b.variance
+    if diff_var <= 0.0:
+        return 0.5 if a.mean == b.mean else 0.0
+    z = abs(a.mean - b.mean) / math.sqrt(diff_var)
+    return 0.5 * math.erfc(z / math.sqrt(2.0))
 
 
 def rescale_to_quantiles(
