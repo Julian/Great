@@ -11,7 +11,16 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-ItemKind = Literal["movie", "tv", "song", "album", "podcast", "book"]
+ItemKind = Literal[
+    "movie",
+    "tv",
+    "song",
+    "album",
+    "artist",
+    "podcast",
+    "book",
+    "game",
+]
 LogStatus = Literal["consumed", "started", "abandoned"]
 Priority = Literal["low", "normal", "high"]
 

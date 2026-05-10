@@ -32,7 +32,7 @@ Bootstrap a data repo and try the loop locally:
 .. code-block:: sh
 
     mkdir my-media && cd my-media
-    great init --list movies:movie --list tv:tv
+    great init                 # seeds one list per kind (movies, tv, ...)
     # Edit items/movie.toml to add some items, then:
     great rank movies          # interactive Textual session
     great consumed "Anora"     # log it (auto-removes from any want queue)

@@ -1,14 +1,16 @@
+from typing import get_args
 import re
 
 from typer.testing import CliRunner
 import pytest
 
 from great._cli import (
+    DEFAULT_LISTS,
     InsufficientItemsError,
     app,
     run_rank_loop,
 )
-from great.models import GreatConfig, Item, ListConfig
+from great.models import GreatConfig, Item, ItemKind, ListConfig
 from great.store import Store
 
 
@@ -154,19 +156,39 @@ def test_init_creates_layout(tmp_path):
         assert (target / sub).is_dir()
 
 
-def test_init_seeds_commented_template_when_no_lists(tmp_path):
+def test_default_lists_cover_every_kind():
+    assert {lst.kind for lst in DEFAULT_LISTS} == set(get_args(ItemKind))
+
+
+def test_init_seeds_default_lists_when_no_lists(tmp_path):
     target = tmp_path / "media"
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0
-    body = (target / "great.toml").read_text()
-    assert "# [[lists]]" in body
-    assert 'kind = "movie"' in body
-    assert "items/EXAMPLE.toml" in body
-    example_items = (target / "items" / "EXAMPLE.toml").read_text()
-    assert "# [[items]]" in example_items
-    assert "items/<kind>.toml" in example_items
     store = Store.find(target)
-    assert store.config.lists == []
+    assert {(lst.name, lst.kind) for lst in store.config.lists} == {
+        ("movies", "movie"),
+        ("tv", "tv"),
+        ("artists", "artist"),
+        ("albums", "album"),
+        ("songs", "song"),
+        ("books", "book"),
+        ("podcasts", "podcast"),
+        ("games", "game"),
+    }
+    for kind in (
+        "movie",
+        "tv",
+        "artist",
+        "album",
+        "song",
+        "book",
+        "podcast",
+        "game",
+    ):
+        body = (target / "items" / f"{kind}.toml").read_text()
+        assert f"kind `{kind}`" in body
+        assert "# [[items]]" in body
+    assert not (target / "items" / "EXAMPLE.toml").exists()
 
 
 def test_init_with_lists(tmp_path):
@@ -191,12 +213,19 @@ def test_init_with_lists_points_at_items_files(tmp_path):
     target = tmp_path / "media"
     result = CliRunner().invoke(
         app,
-        ["init", str(target), "--list", "favorites:movie", "--list",
-         "watchlist:tv"],
+        [
+            "init",
+            str(target),
+            "--list",
+            "favorites:movie",
+            "--list",
+            "watchlist:tv",
+        ],
     )
     assert result.exit_code == 0
-    assert "items/movie.toml" in result.output
-    assert "items/tv.toml" in result.output
+    assert "items/<kind>.toml" in result.output
+    assert "favorites" in result.output
+    assert "watchlist" in result.output
     assert "great rank" in result.output
     movie_items = (target / "items" / "movie.toml").read_text()
     tv_items = (target / "items" / "tv.toml").read_text()

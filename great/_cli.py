@@ -38,29 +38,16 @@ MAX_K = 5
 
 ITEM_KINDS = ", ".join(get_args(ItemKind))
 
-EXAMPLE_GREAT_TOML = f"""\
-# Configure one or more ranked lists.
-#
-# Each [[lists]] table declares a list `great` knows about.
-# Required keys are `name` (used in CLI commands like `great rank <name>`)
-# and `kind` (one of: {ITEM_KINDS}).
-# The optional `description` is shown on the rendered site.
-#
-# Uncomment and edit to get started.
-# Or pass `--list NAME:KIND` to `great init` next time to skip this template.
-#
-# [[lists]]
-# name = "favorites"
-# kind = "movie"
-# description = "All-time movie favorites"
-#
-# [[lists]]
-# name = "watchlist"
-# kind = "tv"
-#
-# Once you've declared a list, see items/EXAMPLE.toml for how to populate
-# its items, then `great rank <list>` to start ranking.
-"""
+DEFAULT_LISTS: tuple[ListConfig, ...] = (
+    ListConfig(name="movies", kind="movie"),
+    ListConfig(name="tv", kind="tv"),
+    ListConfig(name="artists", kind="artist"),
+    ListConfig(name="albums", kind="album"),
+    ListConfig(name="songs", kind="song"),
+    ListConfig(name="books", kind="book"),
+    ListConfig(name="podcasts", kind="podcast"),
+    ListConfig(name="games", kind="game"),
+)
 
 EXAMPLE_ITEM_BLOCK = """\
 [[items]]
@@ -70,19 +57,9 @@ year = 1972             # optional
 """
 
 
-def _example_items_toml(kind: ItemKind | None) -> str:
+def _example_items_toml(kind: ItemKind) -> str:
     """Body for an empty items file with a commented schema example."""
-    if kind is None:
-        header = (
-            "# Items live in items/<kind>.toml — e.g. items/movie.toml.\n"
-            "# (The kind comes from the filename; items don't declare it.)\n"
-            "# Once you've declared lists in great.toml, copy this file to\n"
-            "# items/<kind>.toml for each kind you'll be tracking.\n"
-        )
-    else:
-        header = (
-            f"# Items of kind `{kind}` go here, one [[items]] table each.\n"
-        )
+    header = f"# Items of kind `{kind}` go here, one [[items]] table each.\n"
     body = (
         "# Required keys per item: `id` and `title`. Optional: `year`,\n"
         "# `external_ids`, `metadata`. The `kind` is implied by the\n"
@@ -95,8 +72,11 @@ def _example_items_toml(kind: ItemKind | None) -> str:
     )
     return header + body + commented
 
+
 PAGES_WORKFLOW = (
-    files("great._data").joinpath("pages_workflow.yml").read_text(
+    files("great._data")
+    .joinpath("pages_workflow.yml")
+    .read_text(
         encoding="utf-8",
     )
 )
@@ -537,10 +517,12 @@ def init(
             metavar="NAME:KIND",
             help=(
                 "Declare a list, given as NAME:KIND (repeatable). "
-                "NAME is yours to pick (e.g. 'favorites', 'watchlist'); "
+                "NAME is yours to pick (e.g. 'movies', 'top-films'); "
                 f"KIND is one of: {ITEM_KINDS}. "
-                "Example: --list favorites:movie --list watchlist:tv. "
-                "If omitted, great.toml is seeded with commented examples."
+                "Each list doubles as its own want queue, so prefer one "
+                "list per kind (multiple lists of the same kind require "
+                "passing --list to `great want`). "
+                "If omitted, one list per kind is seeded with default names."
             ),
         ),
     ] = None,
@@ -561,28 +543,21 @@ def init(
     except (typer.BadParameter, ValueError) as e:
         typer.echo(str(e), err=True)
         raise typer.Exit(1) from e
+    if not lists:
+        lists = list(DEFAULT_LISTS)
     Store.init(path, GreatConfig(lists=lists))
-    if lists:
-        for kind in {lst.kind for lst in lists}:
-            (path / "items" / f"{kind}.toml").write_text(
-                _example_items_toml(kind),
-            )
-    else:
-        (path / "great.toml").write_text(EXAMPLE_GREAT_TOML)
-        (path / "items" / "EXAMPLE.toml").write_text(
-            _example_items_toml(None),
+    for kind in {lst.kind for lst in lists}:
+        (path / "items" / f"{kind}.toml").write_text(
+            _example_items_toml(kind),
         )
     if with_pages:
         workflow = path / ".github" / "workflows" / "build.yml"
         workflow.parent.mkdir(parents=True, exist_ok=True)
         workflow.write_text(PAGES_WORKFLOW)
     typer.echo(f"Initialized data repo at {path.resolve()}")
-    if not lists:
-        typer.echo(f"Edit {path / 'great.toml'} to declare your lists.")
-    else:
-        item_files = ", ".join(
-            sorted({f"items/{lst.kind}.toml" for lst in lists}),
-        )
-        names = ", ".join(lst.name for lst in lists)
-        typer.echo(f"Add items to {item_files} (one [[items]] block each),")
-        typer.echo(f"then `great rank <list>` to start ranking ({names}).")
+    names = ", ".join(lst.name for lst in lists)
+    typer.echo(f"Lists: {names}")
+    typer.echo(
+        "Add items to items/<kind>.toml, "
+        "then `great rank <list>` to start ranking.",
+    )

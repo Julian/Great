@@ -32,9 +32,7 @@ TIMEOUT = 10.0
 
 def _resolve_sha(owner: str, repo: str, ref: str) -> str:
     """Return the commit SHA that ``owner/repo@ref`` resolves to."""
-    url = (
-        f"https://api.github.com/repos/{owner}/{repo}/commits/{ref}"
-    )
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits/{ref}"
     req = urllib.request.Request(  # noqa: S310
         url,
         headers={"Accept": "application/vnd.github.sha"},
