@@ -141,6 +141,8 @@ def test_rank_command_too_few_items_exits_nonzero(tmp_path):
     )
     assert result.exit_code == 1
     assert "at least" in result.output.lower()
+    assert "items/movie.toml" in result.output
+    assert "[[items]]" in result.output
 
 
 def test_init_creates_layout(tmp_path):
@@ -159,8 +161,10 @@ def test_init_seeds_commented_template_when_no_lists(tmp_path):
     body = (target / "great.toml").read_text()
     assert "# [[lists]]" in body
     assert 'kind = "movie"' in body
-    assert "items/<kind>.toml" in body
-    assert "# [[items]]" in body
+    assert "items/EXAMPLE.toml" in body
+    example_items = (target / "items" / "EXAMPLE.toml").read_text()
+    assert "# [[items]]" in example_items
+    assert "items/<kind>.toml" in example_items
     store = Store.find(target)
     assert store.config.lists == []
 
@@ -194,6 +198,12 @@ def test_init_with_lists_points_at_items_files(tmp_path):
     assert "items/movie.toml" in result.output
     assert "items/tv.toml" in result.output
     assert "great rank" in result.output
+    movie_items = (target / "items" / "movie.toml").read_text()
+    tv_items = (target / "items" / "tv.toml").read_text()
+    assert "# [[items]]" in movie_items
+    assert "kind `movie`" in movie_items
+    assert "kind `tv`" in tv_items
+    assert not (target / "items" / "EXAMPLE.toml").exists()
 
 
 def test_init_refuses_existing(tmp_path):

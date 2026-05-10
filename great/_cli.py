@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated, get_args
 import contextlib
 import random
+import textwrap
 
 import typer
 
@@ -57,18 +58,42 @@ EXAMPLE_GREAT_TOML = f"""\
 # name = "watchlist"
 # kind = "tv"
 #
-# Items themselves are not declared here.
-# They live in `items/<kind>.toml` (e.g. `items/movie.toml`), as one
-# [[items]] table per item with at least `id` and `title` (the kind is
-# implied by the filename):
-#
-#   [[items]]
-#   id = "tt0068646"        # any globally-unique id (IMDB, MusicBrainz, ...)
-#   title = "The Godfather"
-#   year = 1972             # optional
-#
-# Once a list has items, `great rank <list>` starts an interactive session.
+# Once you've declared a list, see items/EXAMPLE.toml for how to populate
+# its items, then `great rank <list>` to start ranking.
 """
+
+EXAMPLE_ITEM_BLOCK = """\
+[[items]]
+id = "tt0068646"        # any globally-unique id (IMDB, MusicBrainz, ...)
+title = "The Godfather"
+year = 1972             # optional
+"""
+
+
+def _example_items_toml(kind: ItemKind | None) -> str:
+    """Body for an empty items file with a commented schema example."""
+    if kind is None:
+        header = (
+            "# Items live in items/<kind>.toml — e.g. items/movie.toml.\n"
+            "# (The kind comes from the filename; items don't declare it.)\n"
+            "# Once you've declared lists in great.toml, copy this file to\n"
+            "# items/<kind>.toml for each kind you'll be tracking.\n"
+        )
+    else:
+        header = (
+            f"# Items of kind `{kind}` go here, one [[items]] table each.\n"
+        )
+    body = (
+        "# Required keys per item: `id` and `title`. Optional: `year`,\n"
+        "# `external_ids`, `metadata`. The `kind` is implied by the\n"
+        "# filename and must not appear inside [[items]].\n"
+        "#\n"
+    )
+    commented = "".join(
+        (f"# {line}\n" if line else "#\n")
+        for line in EXAMPLE_ITEM_BLOCK.splitlines()
+    )
+    return header + body + commented
 
 PAGES_WORKFLOW = (
     files("great._data").joinpath("pages_workflow.yml").read_text(
@@ -243,8 +268,12 @@ def run_rank_loop(
     list_config = store.list_config(list_name)
     items = store.items(list_config.kind)
     if len(items) < MIN_K:
+        items_path = f"items/{list_config.kind}.toml"
         raise InsufficientItemsError(
-            f"Need at least {MIN_K} items to rank, found {len(items)}.",
+            f"Need at least {MIN_K} items to rank `{list_name}`, "
+            f"found {len(items)}.\n"
+            f"Add items to {items_path}, e.g.:\n\n"
+            + textwrap.indent(EXAMPLE_ITEM_BLOCK.rstrip(), "  "),
         )
 
     rng = rng or random.Random()  # noqa: S311 (not security-sensitive)
@@ -533,8 +562,16 @@ def init(
         typer.echo(str(e), err=True)
         raise typer.Exit(1) from e
     Store.init(path, GreatConfig(lists=lists))
-    if not lists:
+    if lists:
+        for kind in {lst.kind for lst in lists}:
+            (path / "items" / f"{kind}.toml").write_text(
+                _example_items_toml(kind),
+            )
+    else:
         (path / "great.toml").write_text(EXAMPLE_GREAT_TOML)
+        (path / "items" / "EXAMPLE.toml").write_text(
+            _example_items_toml(None),
+        )
     if with_pages:
         workflow = path / ".github" / "workflows" / "build.yml"
         workflow.parent.mkdir(parents=True, exist_ok=True)
