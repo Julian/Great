@@ -21,6 +21,16 @@ ItemKind = Literal[
     "book",
     "game",
 ]
+KIND_PLURAL: dict[ItemKind, str] = {
+    "movie": "movies",
+    "tv": "tv",
+    "song": "songs",
+    "album": "albums",
+    "artist": "artists",
+    "podcast": "podcasts",
+    "book": "books",
+    "game": "games",
+}
 LogStatus = Literal["consumed", "started", "abandoned"]
 Priority = Literal["low", "normal", "high"]
 
@@ -30,10 +40,11 @@ class Item(BaseModel):
     A single rankable item.
 
     `id` is a canonical external id (IMDB ``tt12345``, MusicBrainz UUID,
-    Spotify URI, etc.) and must be globally unique across all kinds —
-    log entries, want entries, and comparisons reference items by
-    ``id`` alone, so cross-kind collisions break those references.
-    Real-world canonical ids satisfy this naturally.
+    Spotify URI, etc.) and must be unique within its kind. Cross-kind
+    collisions are fine: comparisons and want entries are stored per
+    list (so kind is implied by the file), and log entries carry their
+    own ``kind`` field. For hand-written items the id defaults to the
+    title.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -44,6 +55,13 @@ class Item(BaseModel):
     year: int | None = None
     external_ids: dict[str, str] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_id_to_title(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "id" not in data and "title" in data:
+            return {**data, "id": data["title"]}
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], *, kind: ItemKind) -> Self:
@@ -102,6 +120,7 @@ class LogEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ts: datetime
+    kind: ItemKind
     item: str
     status: LogStatus
     notes: str | None = None

@@ -143,7 +143,7 @@ def test_rank_command_too_few_items_exits_nonzero(tmp_path):
     )
     assert result.exit_code == 1
     assert "at least" in result.output.lower()
-    assert "items/movie.toml" in result.output
+    assert "items/movies.toml" in result.output
     assert "[[items]]" in result.output
 
 
@@ -175,17 +175,17 @@ def test_init_seeds_default_lists_when_no_lists(tmp_path):
         ("podcasts", "podcast"),
         ("games", "game"),
     }
-    for kind in (
-        "movie",
-        "tv",
-        "artist",
-        "album",
-        "song",
-        "book",
-        "podcast",
-        "game",
+    for kind, filename in (
+        ("movie", "movies"),
+        ("tv", "tv"),
+        ("artist", "artists"),
+        ("album", "albums"),
+        ("song", "songs"),
+        ("book", "books"),
+        ("podcast", "podcasts"),
+        ("game", "games"),
     ):
-        body = (target / "items" / f"{kind}.toml").read_text()
+        body = (target / "items" / f"{filename}.toml").read_text()
         assert f"kind `{kind}`" in body
         assert "# [[items]]" in body
     assert not (target / "items" / "EXAMPLE.toml").exists()
@@ -223,11 +223,11 @@ def test_init_with_lists_points_at_items_files(tmp_path):
         ],
     )
     assert result.exit_code == 0
-    assert "items/<kind>.toml" in result.output
+    assert "items/" in result.output
     assert "favorites" in result.output
     assert "watchlist" in result.output
     assert "great rank" in result.output
-    movie_items = (target / "items" / "movie.toml").read_text()
+    movie_items = (target / "items" / "movies.toml").read_text()
     tv_items = (target / "items" / "tv.toml").read_text()
     assert "# [[items]]" in movie_items
     assert "kind `movie`" in movie_items
@@ -260,6 +260,16 @@ def test_build_command_produces_index(tmp_path):
         app,
         ["--root", str(tmp_path), "build", "--out", str(tmp_path / "dist")],
     )
+    assert result.exit_code == 0
+    assert (tmp_path / "dist" / "index.html").is_file()
+
+
+def test_build_command_defaults_out_to_repo_root(tmp_path):
+    config = GreatConfig(
+        lists=[ListConfig(name="movies", kind="movie")],
+    )
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "build"])
     assert result.exit_code == 0
     assert (tmp_path / "dist" / "index.html").is_file()
 

@@ -12,6 +12,7 @@ import textwrap
 import typer
 
 from great.models import (
+    KIND_PLURAL,
     Comparison,
     GreatConfig,
     Item,
@@ -248,7 +249,7 @@ def run_rank_loop(
     list_config = store.list_config(list_name)
     items = store.items(list_config.kind)
     if len(items) < MIN_K:
-        items_path = f"items/{list_config.kind}.toml"
+        items_path = f"items/{KIND_PLURAL[list_config.kind]}.toml"
         raise InsufficientItemsError(
             f"Need at least {MIN_K} items to rank `{list_name}`, "
             f"found {len(items)}.\n"
@@ -295,15 +296,18 @@ def resolve_item(
     query: str,
     kind: ItemKind | None = None,
 ) -> Item:
-    """Find an item by id or exact (case-insensitive) title."""
+    """Find an item by id, exact (case-insensitive) title, or external id."""
     kinds: set[ItemKind] = (
         {kind} if kind else {lst.kind for lst in store.config.lists}
     )
+    folded = query.casefold()
     candidates = [
         item
         for k in kinds
         for item in store.items(k)
-        if item.id == query or item.title.casefold() == query.casefold()
+        if item.id == query
+        or item.title.casefold() == folded
+        or query in item.external_ids.values()
     ]
     if not candidates:
         raise ItemNotFoundError(f"no item matching {query!r}")
@@ -372,12 +376,13 @@ def log_(
         store.append_log(
             LogEntry(
                 ts=_resolve_ts(at),
+                kind=resolved.kind,
                 item=resolved.id,
                 status=status,
                 notes=notes,
             ),
         )
-        pruned = store.discard_from_wants(resolved.id)
+        pruned = store.discard_from_wants(resolved.id, resolved.kind)
         typer.echo(f"Logged {status}: {resolved.title}")
         if pruned:
             suffix = "s" if pruned > 1 else ""
@@ -467,7 +472,7 @@ def unwant(
         store = Store.find(ctx.obj)
         resolved = resolve_item(store, item, kind=kind)
         if list_name is None:
-            removed = store.discard_from_wants(resolved.id)
+            removed = store.discard_from_wants(resolved.id, resolved.kind)
         else:
             removed = int(store.remove_want(list_name, resolved.id))
         if removed:
@@ -483,15 +488,19 @@ def unwant(
 def build(
     ctx: typer.Context,
     out: Annotated[
-        Path,
-        typer.Option("--out", help="Output directory."),
-    ] = Path("dist"),
+        Path | None,
+        typer.Option(
+            "--out",
+            help="Output directory (defaults to <repo>/dist).",
+        ),
+    ] = None,
 ) -> None:
     """Render the static site to ``out``."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        build_site(store, out)
-        typer.echo(f"Built site → {out}")
+        target = out if out is not None else store.root / "dist"
+        build_site(store, target)
+        typer.echo(f"Built site → {target}")
 
 
 def _parse_list_spec(spec: str) -> ListConfig:
@@ -547,7 +556,7 @@ def init(
         lists = list(DEFAULT_LISTS)
     Store.init(path, GreatConfig(lists=lists))
     for kind in {lst.kind for lst in lists}:
-        (path / "items" / f"{kind}.toml").write_text(
+        (path / "items" / f"{KIND_PLURAL[kind]}.toml").write_text(
             _example_items_toml(kind),
         )
     if with_pages:
@@ -558,6 +567,5 @@ def init(
     names = ", ".join(lst.name for lst in lists)
     typer.echo(f"Lists: {names}")
     typer.echo(
-        "Add items to items/<kind>.toml, "
-        "then `great rank <list>` to start ranking.",
+        "Add items to items/, then `great rank <list>` to start ranking.",
     )

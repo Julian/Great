@@ -44,6 +44,24 @@ def test_item_rejects_bad_kind():
         Item.model_validate({"id": "x", "kind": "potato", "title": "x"})
 
 
+def test_item_id_defaults_to_title():
+    item = Item.model_validate({"kind": "movie", "title": "Anora"})
+    assert item.id == "Anora"
+
+
+def test_item_explicit_id_wins_over_title():
+    item = Item.model_validate(
+        {"id": "tt1", "kind": "movie", "title": "Anora"},
+    )
+    assert item.id == "tt1"
+
+
+def test_item_round_trip_preserves_defaulted_id():
+    item = Item.model_validate({"kind": "movie", "title": "Anora"})
+    dumped = item.model_dump(exclude={"kind"}, exclude_defaults=True)
+    assert dumped["id"] == "Anora"
+
+
 def test_comparison_pairwise():
     c = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
@@ -118,10 +136,12 @@ def test_comparison_rejects_empty_group():
 def test_log_entry_minimal():
     entry = LogEntry(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
+        kind="movie",
         item="tt1",
         status="consumed",
     )
     assert entry.notes is None
+    assert entry.kind == "movie"
 
 
 def test_want_entry_default_priority():

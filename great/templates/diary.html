@@ -7,9 +7,7 @@
   {% for entry in log_entries %}
   <li>
     <time>{{ entry.ts.date() }}</time> —
-    <a href="items/{{ entry.item|slug }}.html">
-      {{ item_index[entry.item].title if entry.item in item_index else entry.item }}
-    </a>
+    <a href="{{ entry.href }}">{{ entry.title }}</a>
     <small>({{ entry.status }})</small>
     {% if entry.notes %}<br><em>{{ entry.notes }}</em>{% endif %}
   </li>

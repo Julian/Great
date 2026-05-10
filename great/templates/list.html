@@ -22,7 +22,7 @@
     <tr>
       <td class="num">{{ loop.index }}</td>
       {% if list.tiers %}<td class="tier tier-{{ list.tiers[item.id] }}">{{ list.tiers[item.id] }}</td>{% endif %}
-      <td><a href="../items/{{ item.id|slug }}.html">{{ item.title }}</a></td>
+      <td><a href="../items/{{ item.kind }}/{{ item.id|slug }}.html">{{ item.title }}</a></td>
       <td class="num">{{ item.year if item.year else "" }}</td>
       <td class="num">{{ "%+.2f"|format(list.scores[item.id].mean) }}</td>
       <td class="num">{{ "%.2f"|format(list.scores[item.id].variance ** 0.5) }}</td>

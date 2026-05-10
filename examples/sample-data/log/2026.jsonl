@@ -1,3 +1,3 @@
-{"ts":"2026-04-10T20:00:00Z","item":"tt28607951","status":"consumed","notes":"Loved the energy."}
-{"ts":"2026-04-12T19:30:00Z","item":"tt28015403","status":"consumed"}
-{"ts":"2026-04-20T21:00:00Z","item":"tt11280740","status":"started","notes":"Episode 1 of season 2."}
+{"ts":"2026-04-10T20:00:00Z","kind":"movie","item":"tt28607951","status":"consumed","notes":"Loved the energy."}
+{"ts":"2026-04-12T19:30:00Z","kind":"movie","item":"tt28015403","status":"consumed"}
+{"ts":"2026-04-20T21:00:00Z","kind":"tv","item":"tt11280740","status":"started","notes":"Episode 1 of season 2."}

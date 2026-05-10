@@ -45,6 +45,7 @@ def populated(tmp_path):
     store.append_log(
         LogEntry(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
+            kind="movie",
             item="tt1",
             status="consumed",
             notes="loved it",
@@ -80,9 +81,9 @@ def test_build_creates_expected_files(populated, tmp_path):
     assert (out / "queue.html").is_file()
     assert (out / "lists" / "movies.html").is_file()
     assert (out / "lists" / "tv.html").is_file()
-    assert (out / "items" / "tt1.html").is_file()
-    assert (out / "items" / "tt2.html").is_file()
-    assert (out / "items" / "tv1.html").is_file()
+    assert (out / "items" / "movie" / "tt1.html").is_file()
+    assert (out / "items" / "movie" / "tt2.html").is_file()
+    assert (out / "items" / "tv" / "tv1.html").is_file()
     assert (out / "assets" / "style.css").is_file()
 
 
@@ -132,7 +133,7 @@ def test_queue_empty_state_when_no_wants(tmp_path):
 def test_item_page_shows_metadata_and_diary(populated, tmp_path):
     out = tmp_path / "dist"
     build_site(populated, out)
-    html = (out / "items" / "tt1.html").read_text()
+    html = (out / "items" / "movie" / "tt1.html").read_text()
     assert "Anora" in html
     assert "tt1" in html
     assert "loved it" in html
@@ -153,6 +154,31 @@ def test_list_page_shows_tier_when_comparisons_exist(populated, tmp_path):
     html = (out / "lists" / "movies.html").read_text()
     assert "Tier" in html
     assert 'class="tier' in html
+
+
+def test_cross_kind_same_id_produces_separate_item_pages(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="movies", kind="movie"),
+            ListConfig(name="books", kind="book"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [Item(id="Dune", kind="movie", title="Dune", year=2021)],
+    )
+    store.write_items(
+        "book",
+        [Item(id="Dune", kind="book", title="Dune", year=1965)],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    movie_page = (out / "items" / "movie" / "Dune.html").read_text()
+    book_page = (out / "items" / "book" / "Dune.html").read_text()
+    assert "2021" in movie_page
+    assert "2021" not in book_page
+    assert "1965" in book_page
 
 
 def test_list_page_omits_tier_without_comparisons(tmp_path):

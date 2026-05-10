@@ -114,11 +114,13 @@ def test_comparisons_missing_returns_empty(store):
 def test_log_split_by_year(store):
     a = LogEntry(
         ts=datetime(2025, 12, 31, tzinfo=UTC),
+        kind="movie",
         item="tt1",
         status="consumed",
     )
     b = LogEntry(
         ts=datetime(2026, 1, 1, tzinfo=UTC),
+        kind="movie",
         item="tt2",
         status="started",
         notes="paused at the diner scene",
@@ -143,7 +145,7 @@ def test_wants_missing_returns_empty(store):
 
 
 def test_items_rejects_kind_in_file(store):
-    bad = store.root / "items" / "movie.toml"
+    bad = store.root / "items" / "movies.toml"
     bad.write_text(
         '[[items]]\nid = "tt1"\nkind = "movie"\ntitle = "Redundant"\n',
     )
@@ -152,11 +154,26 @@ def test_items_rejects_kind_in_file(store):
 
 
 def test_items_rejects_duplicate_id(store):
-    bad = store.root / "items" / "movie.toml"
+    bad = store.root / "items" / "movies.toml"
     bad.write_text(
         '[[items]]\nid = "tt1"\ntitle = "First"\n'
         '[[items]]\nid = "tt1"\ntitle = "Second"\n',
     )
+    with pytest.raises(Exception, match="duplicate"):
+        store.items("movie")
+
+
+def test_items_default_id_to_title(store):
+    items_file = store.root / "items" / "movies.toml"
+    items_file.write_text('[[items]]\ntitle = "Anora"\n')
+    [item] = store.items("movie")
+    assert item.id == "Anora"
+    assert item.title == "Anora"
+
+
+def test_items_rejects_duplicate_title_when_id_defaults(store):
+    bad = store.root / "items" / "movies.toml"
+    bad.write_text('[[items]]\ntitle = "Anora"\n[[items]]\ntitle = "Anora"\n')
     with pytest.raises(Exception, match="duplicate"):
         store.items("movie")
 
@@ -174,14 +191,14 @@ def test_all_items_aggregates_across_kinds(store):
     assert ids == {"tt1", "tv1"}
 
 
-def test_all_items_rejects_cross_kind_id_collision(store):
+def test_all_items_allows_cross_kind_id_collision(store):
     store.write_items(
         "movie",
-        [Item(id="dup", kind="movie", title="Movie")],
+        [Item(id="Dune", kind="movie", title="Dune")],
     )
     store.write_items(
         "tv",
-        [Item(id="dup", kind="tv", title="Show")],
+        [Item(id="Dune", kind="tv", title="Dune")],
     )
-    with pytest.raises(Exception, match="globally unique"):
-        store.all_items()
+    kinds = {item.kind for item in store.all_items() if item.id == "Dune"}
+    assert kinds == {"movie", "tv"}

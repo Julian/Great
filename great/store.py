@@ -15,6 +15,7 @@ from pydantic import BaseModel
 import tomli_w
 
 from great.models import (
+    KIND_PLURAL,
     Comparison,
     GreatConfig,
     Item,
@@ -80,7 +81,7 @@ class Store:
 
     def items(self, kind: ItemKind) -> list[Item]:
         """Return all items of the given kind, validating invariants."""
-        path = self.root / "items" / f"{kind}.toml"
+        path = self.root / "items" / f"{KIND_PLURAL[kind]}.toml"
         if not path.is_file():
             return []
         with path.open("rb") as f:
@@ -101,35 +102,23 @@ class Store:
         return items
 
     def all_items(self) -> list[Item]:
-        """
-        Return items across all configured kinds, globally id-unique.
-
-        Raises :class:`CorruptStoreError` if the same id appears in two
-        different kinds.
-        """
-        out: list[Item] = []
-        seen: dict[str, ItemKind] = {}
-        for kind in sorted({lst.kind for lst in self.config.lists}):
-            for item in self.items(kind):
-                if item.id in seen and seen[item.id] != item.kind:
-                    raise CorruptStoreError(
-                        f"item id {item.id!r} appears in both "
-                        f"{seen[item.id]!r} and {item.kind!r} kinds; "
-                        "ids must be globally unique",
-                    )
-                seen[item.id] = item.kind
-                out.append(item)
-        return out
+        """Return items across all kinds (id uniqueness is per-kind only)."""
+        return [
+            item
+            for kind in sorted({lst.kind for lst in self.config.lists})
+            for item in self.items(kind)
+        ]
 
     def write_items(self, kind: ItemKind, items: list[Item]) -> None:
         """Replace the items file for ``kind`` with ``items``."""
+        filename = f"{KIND_PLURAL[kind]}.toml"
         for item in items:
             if item.kind != kind:
                 raise ValueError(
                     f"item {item.id!r} has kind {item.kind!r}, "
-                    f"cannot write to items/{kind}.toml",
+                    f"cannot write to items/{filename}",
                 )
-        path = self.root / "items" / f"{kind}.toml"
+        path = self.root / "items" / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {"items": [i.to_dict() for i in items]}
         with path.open("wb") as f:
@@ -190,15 +179,18 @@ class Store:
         self._write_wants(list_name, kept)
         return True
 
-    def discard_from_wants(self, item_id: str) -> int:
-        """Remove ``item_id`` from every want list; return how many removed."""
+    def discard_from_wants(self, item_id: str, kind: ItemKind) -> int:
+        """Remove ``item_id`` from want lists of ``kind``; return count."""
         want_dir = self.root / "want"
         if not want_dir.is_dir():
             return 0
+        list_names = {
+            lst.name for lst in self.config.lists if lst.kind == kind
+        }
         return sum(
             1
             for path in want_dir.glob("*.toml")
-            if self.remove_want(path.stem, item_id)
+            if path.stem in list_names and self.remove_want(path.stem, item_id)
         )
 
     def _write_wants(

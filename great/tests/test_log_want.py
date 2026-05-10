@@ -51,6 +51,23 @@ def test_resolve_unique_title_across_kinds(store):
     assert resolve_item(store, "Severance").id == "tv1"
 
 
+def test_resolve_by_external_id(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [
+            Item(
+                id="The Godfather",
+                kind="movie",
+                title="The Godfather",
+                external_ids={"imdb": "tt0068646"},
+            ),
+        ],
+    )
+    assert resolve_item(store, "tt0068646").title == "The Godfather"
+
+
 def test_resolve_unknown_raises(store):
     with pytest.raises(ItemNotFoundError):
         resolve_item(store, "Nope")

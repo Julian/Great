@@ -3,14 +3,12 @@
 {% block content %}
 <h2>Want to consume</h2>
 {% set ns = namespace(anything=false) %}
-{% for data in lists %}{% if data.wants %}{% set ns.anything = true %}
+{% for data in lists %}{% if data.want_views %}{% set ns.anything = true %}
 <h3>{{ data.config.name }}</h3>
 <ul class="queue">
-  {% for w in data.wants %}
+  {% for w in data.want_views %}
   <li>
-    <a href="items/{{ w.item|slug }}.html">
-      {{ item_index[w.item].title if w.item in item_index else w.item }}
-    </a>
+    <a href="{{ w.href }}">{{ w.title }}</a>
     <small>added {{ w.added }} · priority {{ w.priority }}</small>
   </li>
   {% endfor %}

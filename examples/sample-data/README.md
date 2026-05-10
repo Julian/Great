@@ -11,7 +11,7 @@ open dist/index.html
 Layout:
 
 - `great.toml` — list config
-- `items/{kind}.toml` — items, keyed by canonical id within a kind
+- `items/{kinds}.toml` — items by pluralized kind (`movies.toml`, `tv.toml`, …); each id unique within its file
 - `comparisons/{list}.jsonl` — append-only ranking judgments
 - `log/{year}.jsonl` — append-only consumption diary
 - `want/{list}.toml` — want-to-consume queue (mutable; pruned on consume)
