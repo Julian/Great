@@ -152,6 +152,17 @@ def test_init_creates_layout(tmp_path):
         assert (target / sub).is_dir()
 
 
+def test_init_seeds_commented_template_when_no_lists(tmp_path):
+    target = tmp_path / "media"
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0
+    body = (target / "great.toml").read_text()
+    assert "# [[lists]]" in body
+    assert 'kind = "movie"' in body
+    store = Store.find(target)
+    assert store.config.lists == []
+
+
 def test_init_with_lists(tmp_path):
     target = tmp_path / "media"
     result = CliRunner().invoke(

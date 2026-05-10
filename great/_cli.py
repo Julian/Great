@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, get_args
 import contextlib
 import random
 
@@ -34,6 +34,29 @@ from great.tui import Session, run_rank_session
 RANDOM_SEED_EVERY = 5
 RANK_MAX_ITERS_DEFAULT = 100
 MAX_K = 5
+
+ITEM_KINDS = ", ".join(get_args(ItemKind))
+
+EXAMPLE_GREAT_TOML = """\
+# Configure one or more ranked lists.
+#
+# Each [[lists]] table declares a list `great` knows about.
+# Required keys are `name` (used in CLI commands like `great rank <name>`)
+# and `kind` (one of: {kinds}).
+# The optional `description` is shown on the rendered site.
+#
+# Uncomment and edit to get started.
+# Or pass `--list NAME:KIND` to `great init` next time to skip this template.
+#
+# [[lists]]
+# name = "favorites"
+# kind = "movie"
+# description = "All-time movie favorites"
+#
+# [[lists]]
+# name = "watchlist"
+# kind = "tv"
+""".format(kinds=ITEM_KINDS)
 
 PAGES_WORKFLOW = (
     files("great._data").joinpath("pages_workflow.yml").read_text(
@@ -470,7 +493,14 @@ def init(
         typer.Option(
             "--list",
             "-l",
-            help="Declare a list as NAME:KIND (repeatable).",
+            metavar="NAME:KIND",
+            help=(
+                "Declare a list, given as NAME:KIND (repeatable). "
+                "NAME is yours to pick (e.g. 'favorites', 'watchlist'); "
+                f"KIND is one of: {ITEM_KINDS}. "
+                "Example: --list favorites:movie --list watchlist:tv. "
+                "If omitted, great.toml is seeded with commented examples."
+            ),
         ),
     ] = None,
     with_pages: Annotated[
@@ -491,12 +521,15 @@ def init(
         typer.echo(str(e), err=True)
         raise typer.Exit(1) from e
     Store.init(path, GreatConfig(lists=lists))
+    if not lists:
+        (path / "great.toml").write_text(EXAMPLE_GREAT_TOML)
     if with_pages:
         workflow = path / ".github" / "workflows" / "build.yml"
         workflow.parent.mkdir(parents=True, exist_ok=True)
         workflow.write_text(PAGES_WORKFLOW)
     typer.echo(f"Initialized data repo at {path.resolve()}")
     if not lists:
-        typer.echo(
-            "Edit great.toml to add lists, then `great rank <list>` to start.",
-        )
+        typer.echo(f"Edit {path / 'great.toml'} to declare your lists.")
+    else:
+        names = ", ".join(lst.name for lst in lists)
+        typer.echo(f"Run `great rank <list>` to start ranking ({names}).")
