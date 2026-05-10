@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from importlib.resources import files
 from pathlib import Path
 from typing import Annotated
 import contextlib
@@ -34,47 +35,11 @@ RANDOM_SEED_EVERY = 5
 RANK_MAX_ITERS_DEFAULT = 100
 MAX_K = 5
 
-PAGES_WORKFLOW = """\
-name: build-and-deploy
-
-on:
-  push:
-    branches: [main, master]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - run: uv tool install great
-      - run: great build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-"""
+PAGES_WORKFLOW = (
+    files("great._data").joinpath("pages_workflow.yml").read_text(
+        encoding="utf-8",
+    )
+)
 
 
 class InsufficientItemsError(Exception):

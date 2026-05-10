@@ -1,0 +1,45 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # checkout
+    steps:
+      - uses: actions/checkout@<<checkout_sha>>  # <<checkout_version>>
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@<<setup_uv_sha>>  # <<setup_uv_version>>
+        with:
+          enable-cache: false
+      - run: uv tool install great
+      - run: great build
+      - uses: actions/upload-pages-artifact@<<upload_pages_artifact_sha>>  # <<upload_pages_artifact_version>>
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write     # deploy-pages
+      id-token: write  # OIDC token for deploy-pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@<<deploy_pages_sha>>  # <<deploy_pages_version>>

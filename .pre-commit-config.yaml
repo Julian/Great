@@ -22,3 +22,4 @@ repos:
     hooks:
       - id: zizmor
         args: [--pedantic]
+        files: ^(\.github/workflows/.*|great/_data/pages_workflow)\.ya?ml$

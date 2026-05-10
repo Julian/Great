@@ -1,3 +1,5 @@
+import re
+
 from typer.testing import CliRunner
 import pytest
 
@@ -204,8 +206,20 @@ def test_init_drops_pages_workflow_by_default(tmp_path):
     workflow = target / ".github" / "workflows" / "build.yml"
     assert workflow.is_file()
     body = workflow.read_text()
-    assert "actions/deploy-pages" in body
     assert "great build" in body
+    assert "persist-credentials: false" in body
+    assert "permissions: {}" in body
+    matches = re.findall(
+        r"uses: ([\w./-]+)@([0-9a-f]{40})",
+        body,
+    )
+    assert len(matches) == 4
+    assert {action for action, _ in matches} == {
+        "actions/checkout",
+        "astral-sh/setup-uv",
+        "actions/upload-pages-artifact",
+        "actions/deploy-pages",
+    }
 
 
 def test_init_skips_workflow_with_no_pages(tmp_path):
