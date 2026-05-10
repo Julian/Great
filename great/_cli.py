@@ -37,12 +37,12 @@ MAX_K = 5
 
 ITEM_KINDS = ", ".join(get_args(ItemKind))
 
-EXAMPLE_GREAT_TOML = """\
+EXAMPLE_GREAT_TOML = f"""\
 # Configure one or more ranked lists.
 #
 # Each [[lists]] table declares a list `great` knows about.
 # Required keys are `name` (used in CLI commands like `great rank <name>`)
-# and `kind` (one of: {kinds}).
+# and `kind` (one of: {ITEM_KINDS}).
 # The optional `description` is shown on the rendered site.
 #
 # Uncomment and edit to get started.
@@ -56,7 +56,7 @@ EXAMPLE_GREAT_TOML = """\
 # [[lists]]
 # name = "watchlist"
 # kind = "tv"
-""".format(kinds=ITEM_KINDS)
+"""
 
 PAGES_WORKFLOW = (
     files("great._data").joinpath("pages_workflow.yml").read_text(
