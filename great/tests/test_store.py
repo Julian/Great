@@ -142,10 +142,10 @@ def test_wants_missing_returns_empty(store):
     assert store.wants("movies") == []
 
 
-def test_items_rejects_kind_mismatch(store):
+def test_items_rejects_kind_in_file(store):
     bad = store.root / "items" / "movie.toml"
     bad.write_text(
-        '[[items]]\nid = "tt1"\nkind = "tv"\ntitle = "Mistake"\n',
+        '[[items]]\nid = "tt1"\nkind = "movie"\ntitle = "Redundant"\n',
     )
     with pytest.raises(Exception, match="kind"):
         store.items("movie")
@@ -154,8 +154,8 @@ def test_items_rejects_kind_mismatch(store):
 def test_items_rejects_duplicate_id(store):
     bad = store.root / "items" / "movie.toml"
     bad.write_text(
-        '[[items]]\nid = "tt1"\nkind = "movie"\ntitle = "First"\n'
-        '[[items]]\nid = "tt1"\nkind = "movie"\ntitle = "Second"\n',
+        '[[items]]\nid = "tt1"\ntitle = "First"\n'
+        '[[items]]\nid = "tt1"\ntitle = "Second"\n',
     )
     with pytest.raises(Exception, match="duplicate"):
         store.items("movie")

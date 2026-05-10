@@ -56,6 +56,18 @@ EXAMPLE_GREAT_TOML = f"""\
 # [[lists]]
 # name = "watchlist"
 # kind = "tv"
+#
+# Items themselves are not declared here.
+# They live in `items/<kind>.toml` (e.g. `items/movie.toml`), as one
+# [[items]] table per item with at least `id` and `title` (the kind is
+# implied by the filename):
+#
+#   [[items]]
+#   id = "tt0068646"        # any globally-unique id (IMDB, MusicBrainz, ...)
+#   title = "The Godfather"
+#   year = 1972             # optional
+#
+# Once a list has items, `great rank <list>` starts an interactive session.
 """
 
 PAGES_WORKFLOW = (
@@ -531,5 +543,9 @@ def init(
     if not lists:
         typer.echo(f"Edit {path / 'great.toml'} to declare your lists.")
     else:
+        item_files = ", ".join(
+            sorted({f"items/{lst.kind}.toml" for lst in lists}),
+        )
         names = ", ".join(lst.name for lst in lists)
-        typer.echo(f"Run `great rank <list>` to start ranking ({names}).")
+        typer.echo(f"Add items to {item_files} (one [[items]] block each),")
+        typer.echo(f"then `great rank <list>` to start ranking ({names}).")

@@ -1,34 +1,29 @@
 [[items]]
 id = "tt0034583"
-kind = "movie"
 title = "Casablanca"
 year = 1942
 external_ids = { imdb = "tt0034583" }
 
 [[items]]
 id = "tt0033467"
-kind = "movie"
 title = "Citizen Kane"
 year = 1941
 external_ids = { imdb = "tt0033467" }
 
 [[items]]
 id = "tt0068646"
-kind = "movie"
 title = "The Godfather"
 year = 1972
 external_ids = { imdb = "tt0068646" }
 
 [[items]]
 id = "tt28015403"
-kind = "movie"
 title = "Conclave"
 year = 2024
 external_ids = { imdb = "tt28015403" }
 
 [[items]]
 id = "tt28607951"
-kind = "movie"
 title = "Anora"
 year = 2024
 external_ids = { imdb = "tt28607951" }

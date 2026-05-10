@@ -159,6 +159,8 @@ def test_init_seeds_commented_template_when_no_lists(tmp_path):
     body = (target / "great.toml").read_text()
     assert "# [[lists]]" in body
     assert 'kind = "movie"' in body
+    assert "items/<kind>.toml" in body
+    assert "# [[items]]" in body
     store = Store.find(target)
     assert store.config.lists == []
 
@@ -179,6 +181,19 @@ def test_init_with_lists(tmp_path):
     assert result.exit_code == 0
     store = Store.find(target)
     assert {lst.name for lst in store.config.lists} == {"movies", "tv"}
+
+
+def test_init_with_lists_points_at_items_files(tmp_path):
+    target = tmp_path / "media"
+    result = CliRunner().invoke(
+        app,
+        ["init", str(target), "--list", "favorites:movie", "--list",
+         "watchlist:tv"],
+    )
+    assert result.exit_code == 0
+    assert "items/movie.toml" in result.output
+    assert "items/tv.toml" in result.output
+    assert "great rank" in result.output
 
 
 def test_init_refuses_existing(tmp_path):

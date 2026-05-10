@@ -1,13 +1,11 @@
 [[items]]
 id = "tt11280740"
-kind = "tv"
 title = "Severance"
 year = 2022
 external_ids = { imdb = "tt11280740" }
 
 [[items]]
 id = "tt14452776"
-kind = "tv"
 title = "The Bear"
 year = 2022
 external_ids = { imdb = "tt14452776" }

@@ -85,19 +85,19 @@ class Store:
             return []
         with path.open("rb") as f:
             data = tomllib.load(f)
-        items = [Item.model_validate(i) for i in data.get("items", [])]
+        items: list[Item] = []
         seen: set[str] = set()
-        for item in items:
-            if item.kind != kind:
-                raise CorruptStoreError(
-                    f"{path}: item {item.id!r} has kind {item.kind!r}, "
-                    f"expected {kind!r}",
-                )
+        for raw in data.get("items", []):
+            try:
+                item = Item.from_dict(raw, kind=kind)
+            except ValueError as e:
+                raise CorruptStoreError(f"{path}: {e}") from e
             if item.id in seen:
                 raise CorruptStoreError(
                     f"{path}: duplicate item id {item.id!r}",
                 )
             seen.add(item.id)
+            items.append(item)
         return items
 
     def all_items(self) -> list[Item]:
@@ -123,9 +123,15 @@ class Store:
 
     def write_items(self, kind: ItemKind, items: list[Item]) -> None:
         """Replace the items file for ``kind`` with ``items``."""
+        for item in items:
+            if item.kind != kind:
+                raise ValueError(
+                    f"item {item.id!r} has kind {item.kind!r}, "
+                    f"cannot write to items/{kind}.toml",
+                )
         path = self.root / "items" / f"{kind}.toml"
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"items": [_dump(i) for i in items]}
+        payload = {"items": [i.to_dict() for i in items]}
         with path.open("wb") as f:
             tomli_w.dump(payload, f)
 

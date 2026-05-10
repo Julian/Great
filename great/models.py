@@ -36,6 +36,25 @@ class Item(BaseModel):
     external_ids: dict[str, str] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], *, kind: ItemKind) -> Self:
+        """Build an Item from a TOML mapping; the file's kind is supplied."""
+        if "kind" in data:
+            raise ValueError(
+                "item must not declare `kind` (it's implied by the items "
+                "file it lives in)",
+            )
+        return cls.model_validate({**data, "kind": kind})
+
+    def to_dict(self) -> dict[str, Any]:
+        """Dump for storage; ``kind`` is omitted (lives in the filename)."""
+        return self.model_dump(
+            mode="python",
+            exclude={"kind"},
+            exclude_defaults=True,
+            exclude_none=True,
+        )
+
 
 class Comparison(BaseModel):
     """
