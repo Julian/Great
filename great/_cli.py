@@ -203,6 +203,34 @@ def lists_(ctx: typer.Context) -> None:
 
 
 @app.command()
+def diary(
+    ctx: typer.Context,
+    year: Annotated[
+        int | None,
+        typer.Option("--year", help="Restrict to a single year."),
+    ] = None,
+) -> None:
+    """Print the consumption diary, most recent first."""
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        entries = sorted(
+            store.log(year=year),
+            key=lambda e: e.ts,
+            reverse=True,
+        )
+        if not entries:
+            typer.echo("No diary entries.")
+            return
+        titles = {(i.kind, i.id): i.title for i in store.all_items()}
+        for e in entries:
+            title = titles.get((e.kind, e.item), e.item)
+            tail = f" — {e.notes}" if e.notes else ""
+            typer.echo(
+                f"{e.ts.date()}  {title} ({e.kind})  {e.status}{tail}",
+            )
+
+
+@app.command()
 def rank(
     ctx: typer.Context,
     list_name: Annotated[

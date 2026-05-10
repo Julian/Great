@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,8 @@ from great.models import (
 )
 from great.render import build_site, slug
 from great.store import Store
+
+SAMPLE_DATA = Path(__file__).parents[2] / "examples" / "sample-data"
 
 
 @pytest.fixture
@@ -179,6 +182,20 @@ def test_cross_kind_same_id_produces_separate_item_pages(tmp_path):
     assert "2021" in movie_page
     assert "2021" not in book_page
     assert "1965" in book_page
+
+
+def test_sample_data_builds(tmp_path):
+    store = Store(SAMPLE_DATA)
+    build_site(store, tmp_path)
+    assert (tmp_path / "index.html").is_file()
+    assert (tmp_path / "diary.html").is_file()
+    assert (tmp_path / "queue.html").is_file()
+    assert (tmp_path / "lists" / "favorites.html").is_file()
+    assert (tmp_path / "items" / "movie" / "tt0068646.html").is_file()
+    assert (tmp_path / "items" / "tv" / "tt11280740.html").is_file()
+    diary = (tmp_path / "diary.html").read_text()
+    assert "Anora" in diary
+    assert "Severance" in diary
 
 
 def test_list_page_omits_tier_without_comparisons(tmp_path):

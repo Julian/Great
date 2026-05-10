@@ -304,6 +304,76 @@ def test_init_skips_workflow_with_no_pages(tmp_path):
     assert not (target / ".github").exists()
 
 
+def test_diary_command_lists_entries_most_recent_first(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [
+            Item(id="tt1", kind="movie", title="Anora"),
+            Item(id="tt2", kind="movie", title="Casablanca"),
+        ],
+    )
+    CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "consumed", "Anora", "--at", "2026-04-10"],
+    )
+    CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "log",
+            "Casablanca",
+            "--status",
+            "started",
+            "--at",
+            "2026-04-20",
+            "--notes",
+            "first half",
+        ],
+    )
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "diary"])
+    assert result.exit_code == 0
+    lines = [line for line in result.output.splitlines() if line.strip()]
+    assert lines[0].startswith("2026-04-20")
+    assert "Casablanca (movie)" in lines[0]
+    assert "started" in lines[0]
+    assert "first half" in lines[0]
+    assert lines[1].startswith("2026-04-10")
+    assert "Anora (movie)" in lines[1]
+    assert "consumed" in lines[1]
+
+
+def test_diary_command_year_filter(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.write_items("movie", [Item(id="tt1", kind="movie", title="Anora")])
+    CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "consumed", "Anora", "--at", "2025-06-01"],
+    )
+    CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "consumed", "Anora", "--at", "2026-06-01"],
+    )
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "diary", "--year", "2025"],
+    )
+    assert result.exit_code == 0
+    lines = [line for line in result.output.splitlines() if line.strip()]
+    assert len(lines) == 1
+    assert lines[0].startswith("2025-06-01")
+
+
+def test_diary_command_empty(tmp_path):
+    Store.init(tmp_path, GreatConfig())
+    result = CliRunner().invoke(app, ["--root", str(tmp_path), "diary"])
+    assert result.exit_code == 0
+    assert "no diary entries" in result.output.lower()
+
+
 def test_lists_command_enumerates(tmp_path):
     config = GreatConfig(
         lists=[
