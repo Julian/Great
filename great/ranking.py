@@ -147,7 +147,9 @@ def rescale_to_quantiles(
     Spreads ranks linearly across the available bucket range so that
     the lowest-ranked item is always in bucket 0 and the highest in
     ``n_quantiles - 1``, even when there are fewer items than
-    quantiles. Buckets remain monotonic in score.
+    quantiles. Items sharing a mean share a bucket, assigned from the
+    midpoint of their run so an all-tied list lands in the middle.
+    Buckets remain monotonic in score.
     """
     if not scores:
         return {}
@@ -155,10 +157,19 @@ def rescale_to_quantiles(
     n = len(sorted_ids)
     if n == 1:
         return {sorted_ids[0]: n_quantiles - 1}
-    return {
-        iid: min(n_quantiles - 1, int(i / (n - 1) * n_quantiles))
-        for i, iid in enumerate(sorted_ids)
-    }
+    buckets: dict[str, int] = {}
+    i = 0
+    while i < n:
+        mean = scores[sorted_ids[i]].mean
+        j = i
+        while j < n and scores[sorted_ids[j]].mean == mean:
+            j += 1
+        midpoint = (i + j - 1) / 2
+        bucket = min(n_quantiles - 1, int(midpoint / (n - 1) * n_quantiles))
+        for k in range(i, j):
+            buckets[sorted_ids[k]] = bucket
+        i = j
+    return buckets
 
 
 def _to_pairs(c: Comparison) -> list[tuple[str, str]]:

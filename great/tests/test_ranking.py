@@ -229,3 +229,23 @@ def test_rescale_monotonic_in_score():
     assert ordered == sorted(ordered)
     assert ordered[0] == 0
     assert ordered[-1] == 4
+
+
+def test_rescale_ties_share_bucket():
+    scores = {
+        "low": Score(-1.0, 0.1),
+        "a": Score(0.0, 0.1),
+        "b": Score(0.0, 0.5),
+        "c": Score(0.0, 1.0),
+        "d": Score(0.0, 1.0),
+        "high": Score(1.0, 0.1),
+    }
+    quantiles = rescale_to_quantiles(scores, n_quantiles=5)
+    assert quantiles["a"] == quantiles["b"] == quantiles["c"] == quantiles["d"]
+    assert quantiles["low"] < quantiles["a"] < quantiles["high"]
+
+
+def test_rescale_all_tied_lands_in_middle():
+    scores = {k: Score(0.0, 1.0) for k in "abcdefgh"}
+    quantiles = rescale_to_quantiles(scores, n_quantiles=5)
+    assert set(quantiles.values()) == {2}
