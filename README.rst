@@ -32,12 +32,13 @@ Bootstrap a data repo and try the loop locally:
 .. code-block:: sh
 
     mkdir my-media && cd my-media
-    great init                 # seeds one list per kind (movies, tv, ...)
-    # Edit items/movie.toml to add some items, then:
-    great rank movies          # interactive Textual session
-    great consumed "Anora"     # log it (auto-removes from any want queue)
-    great want "Severance"     # add to want queue
-    great build                # render → dist/
+    great init                          # seeds one list per kind
+    great want "Severance" --kind tv    # add to the (per-kind) want queue
+    # Edit items/movies.toml to add some watched items, then:
+    great rank movies                   # rank what you've watched
+    great rank tv --want                # rank what you want to watch next
+    great consumed "Severance"          # promotes the wanted item to the catalog
+    great build                         # render → dist/
 
 A working sample lives in ``examples/sample-data/``.
 ``great init`` (default ``--with-pages``) drops a GitHub Actions workflow that builds the site and deploys to Pages on every push.
@@ -52,23 +53,24 @@ CLI
 ``great lists``
     Show configured lists.
 
-``great rank <list>``
-    Run a Textual ranking session.
+``great rank <list>`` / ``great rank <kind> --want``
+    Run a Textual ranking session — over a favorite-list, or (with
+    ``--want``) the want queue for ``<kind>``.
 
-``great show <list>``
-    Print the inferred ranking.
+``great show <list>`` / ``great show <kind> --want``
+    Print the inferred ranking, favorites or want.
 
 ``great log <item> [--status ...] [--notes ...] [--at DATE]``
-    Append a diary entry.
+    Append a diary entry. Consuming a wanted item promotes it to the catalog.
 
 ``great consumed <item> [--at DATE]``
     Alias for ``log --status consumed``.
 
-``great want <item> [--list ...] [--priority ...]``
-    Add to a want queue.
+``great want <title> --kind KIND [--year YEAR] [--id ID]``
+    Add a free-form title to the kind's want queue (one queue per kind).
 
-``great unwant <item>``
-    Remove from want queues.
+``great unwant <item> [--kind KIND]``
+    Remove from the kind's want queue.
 
 ``great build [--out dist/]``
     Render the static site.

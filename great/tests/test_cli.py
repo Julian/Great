@@ -154,6 +154,53 @@ def test_run_rank_loop_stops_when_ranking_is_settled(tmp_path):
     assert 0 < appended < 100
 
 
+def test_run_rank_loop_want_mode_writes_to_want_comparisons(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.add_want(Item(id="w1", kind="movie", title="Wanted A"))
+    store.add_want(Item(id="w2", kind="movie", title="Wanted B"))
+
+    appended = run_rank_loop(
+        store,
+        "movie",
+        want=True,
+        session=lambda _cluster: [[0], [1]],
+        max_iters=1,
+    )
+
+    assert appended == 1
+    assert store.comparisons("movies") == []
+    [c] = store.want_comparisons("movie")
+    assert c.ordering == [[0], [1]]
+
+
+def test_run_rank_loop_want_mode_rejects_bad_kind(tmp_path):
+    Store.init(tmp_path, GreatConfig())
+    store = Store.find(tmp_path)
+    with pytest.raises(Exception, match="not a valid kind"):
+        run_rank_loop(
+            store,
+            "potato",
+            want=True,
+            session=lambda _cluster: None,
+            max_iters=1,
+        )
+
+
+def test_show_want_prints_want_ranking(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.add_want(Item(id="w1", kind="movie", title="Wanted A"))
+    store.add_want(Item(id="w2", kind="movie", title="Wanted B"))
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "show", "movie", "--want"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Wanted A" in result.output
+    assert "Wanted B" in result.output
+
+
 def test_run_rank_loop_refuses_too_few_items(tmp_path):
     _setup_movies(
         tmp_path,
@@ -190,7 +237,7 @@ def test_init_creates_layout(tmp_path):
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0
     assert (target / "great.toml").is_file()
-    for sub in ("items", "comparisons", "log", "want"):
+    for sub in ("items", "comparisons", "comparisons/want", "log", "want"):
         assert (target / sub).is_dir()
 
 

@@ -1,12 +1,12 @@
 """
-Data model for items, comparisons, log entries, want entries, and config.
+Data model for items, comparisons, log entries, and config.
 
 These are the shapes serialized to and from a Great data repo. TOML for
-items / want entries / config; JSONL for the append-only comparison and
-log streams.
+items (consumed and wanted alike) and config; JSONL for the append-only
+comparison and log streams.
 """
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -32,7 +32,6 @@ KIND_PLURAL: dict[ItemKind, str] = {
     "game": "games",
 }
 LogStatus = Literal["consumed", "started", "abandoned"]
-Priority = Literal["low", "normal", "high"]
 
 
 class Item(BaseModel):
@@ -40,11 +39,11 @@ class Item(BaseModel):
     A single rankable item.
 
     `id` is a canonical external id (IMDB ``tt12345``, MusicBrainz UUID,
-    Spotify URI, etc.) and must be unique within its kind. Cross-kind
-    collisions are fine: comparisons and want entries are stored per
-    list (so kind is implied by the file), and log entries carry their
-    own ``kind`` field. For hand-written items the id defaults to the
-    title.
+    Spotify URI, etc.) and must be unique within its kind across the
+    consumed catalog (``items/<kind>.toml``) and the want queue
+    (``want/<kind>.toml``) combined — the two are disjoint, and an
+    item is promoted from want to consumed by moving the record. For
+    hand-written items the id defaults to the title.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -65,7 +64,13 @@ class Item(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], *, kind: ItemKind) -> Self:
-        """Build an Item from a TOML mapping; the file's kind is supplied."""
+        """
+        Build an Item from a partial mapping (e.g. a TOML row or CLI input).
+
+        ``data`` must not contain a ``kind`` key — kind is implied by the
+        items file (or want file) the item lives in, and is supplied by
+        the caller. ``id`` may be omitted; it defaults to ``title``.
+        """
         if "kind" in data:
             raise ValueError(
                 "item must not declare `kind` (it's implied by the items "
@@ -93,12 +98,15 @@ class Comparison(BaseModel):
     one item per group (e.g. ``[[0], [1], [2]]``); an all-tied
     comparison has a single group (e.g. ``[[0, 1, 2]]``); partial
     ties are also expressible (e.g. ``[[2], [0, 1]]``).
+
+    Comparisons are routed to storage by the caller (favorite-ranking
+    vs. want-ranking, list name or kind); the record itself carries no
+    routing field.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     ts: datetime
-    list: str
     items: list[str] = Field(min_length=2)
     ordering: list[list[int]] = Field(min_length=1)
 
@@ -124,16 +132,6 @@ class LogEntry(BaseModel):
     item: str
     status: LogStatus
     notes: str | None = None
-
-
-class WantEntry(BaseModel):
-    """A want-to-consume queue entry."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    item: str
-    added: date
-    priority: Priority = "normal"
 
 
 class ListConfig(BaseModel):

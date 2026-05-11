@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,6 @@ from great.models import (
     Item,
     ListConfig,
     LogEntry,
-    WantEntry,
 )
 from great.render import build_site, slug
 from great.store import Store
@@ -38,9 +37,9 @@ def populated(tmp_path):
         [Item(id="tv1", kind="tv", title="Severance", year=2022)],
     )
     store.append_comparison(
+        "movies",
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            list="movies",
             items=["tt1", "tt2"],
             ordering=[[0], [1]],
         ),
@@ -54,10 +53,7 @@ def populated(tmp_path):
             notes="loved it",
         ),
     )
-    store.add_want(
-        "tv",
-        WantEntry(item="tv1", added=date(2026, 5, 9), priority="high"),
-    )
+    store.add_want(Item(id="The Bear", kind="tv", title="The Bear", year=2022))
     return store
 
 
@@ -119,8 +115,7 @@ def test_queue_shows_wants(populated, tmp_path):
     out = tmp_path / "dist"
     build_site(populated, out)
     html = (out / "queue.html").read_text()
-    assert "Severance" in html
-    assert "high" in html
+    assert "The Bear" in html
     assert "Nothing in the queue" not in html
 
 

@@ -7,8 +7,8 @@ from urllib.parse import quote
 
 import jinja2
 
-from great.models import Item, ItemKind, LogEntry, WantEntry
-from great.ranking import infer, rescale_to_quantiles
+from great.models import Item, ItemKind, LogEntry
+from great.ranking import Score, infer, rescale_to_quantiles
 from great.store import Store
 
 TIER_LETTERS = ("D", "C", "B", "A", "S")
@@ -33,8 +33,13 @@ def build_site(store: Store, out: Path) -> None:
     _copy_assets(out)
 
     list_data = _aggregate_lists(store)
+    want_data = _aggregate_wants(store)
     items_by_key: dict[tuple[ItemKind, str], Item] = {
-        (item.kind, item.id): item for item in store.all_items()
+        (item.kind, item.id): item
+        for item in [
+            *store.all_items(),
+            *(item for queue in want_data for item in queue["ranked"]),
+        ]
     }
     log_entries = sorted(store.log(), key=lambda e: e.ts, reverse=True)
 
@@ -94,16 +99,7 @@ def build_site(store: Store, out: Path) -> None:
         out / "queue.html",
         env.get_template("queue.html"),
         up="",
-        lists=[
-            {
-                **data,
-                "want_views": [
-                    _want_view(w, data["config"].kind, items_by_key)
-                    for w in data["wants"]
-                ],
-            }
-            for data in list_data
-        ],
+        queues=want_data,
     )
 
 
@@ -133,19 +129,15 @@ def _log_view(
     }
 
 
-def _want_view(
-    want: WantEntry,
-    kind: ItemKind,
-    items_by_key: dict[tuple[ItemKind, str], Item],
-) -> dict[str, Any]:
-    item = items_by_key.get((kind, want.item))
-    return {
-        "item_id": want.item,
-        "added": want.added,
-        "priority": want.priority,
-        "title": item.title if item else want.item,
-        "href": f"items/{kind}/{slug(want.item)}.html",
-    }
+def rank_by_score(
+    items: list[Item],
+    scores: dict[str, Score],
+) -> list[Item]:
+    """Stable score-descending sort with case-insensitive title tiebreak."""
+    return sorted(
+        items,
+        key=lambda i: (-scores[i.id].mean, i.title.casefold()),
+    )
 
 
 def _aggregate_lists(store: Store) -> list[dict[str, Any]]:
@@ -154,7 +146,6 @@ def _aggregate_lists(store: Store) -> list[dict[str, Any]]:
         items = store.items(list_config.kind)
         comparisons = store.comparisons(list_config.name)
         scores = infer(comparisons, items)
-        ranked = sorted(items, key=lambda i: scores[i.id].mean, reverse=True)
         # Tiers only make sense once there's actual ranking signal.
         tiers = (
             {
@@ -170,11 +161,29 @@ def _aggregate_lists(store: Store) -> list[dict[str, Any]]:
         out.append(
             {
                 "config": list_config,
-                "ranked": ranked,
+                "ranked": rank_by_score(items, scores),
                 "scores": scores,
                 "tiers": tiers,
                 "comparison_count": len(comparisons),
-                "wants": store.wants(list_config.name),
+            },
+        )
+    return out
+
+
+def _aggregate_wants(store: Store) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for kind in sorted({lst.kind for lst in store.config.lists}):
+        wants = store.wants(kind)
+        if not wants:
+            continue
+        comparisons = store.want_comparisons(kind)
+        scores = infer(comparisons, wants)
+        out.append(
+            {
+                "kind": kind,
+                "ranked": rank_by_score(wants, scores),
+                "scores": scores,
+                "comparison_count": len(comparisons),
             },
         )
     return out

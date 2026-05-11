@@ -3,8 +3,9 @@ Read and write a Great data repo.
 
 A data repo is a directory containing ``great.toml`` plus four
 sibling subdirectories: ``items/``, ``comparisons/``, ``log/``, and
-``want/``. Items and want-entries live in TOML; comparisons and log
-entries are append-only JSONL.
+``want/``. Items (consumed and wanted alike) live in TOML; comparisons
+and log entries are append-only JSONL. The want queue uses the same
+``Item`` schema as the consumed catalog and is kept disjoint from it.
 """
 
 from pathlib import Path
@@ -22,7 +23,6 @@ from great.models import (
     ItemKind,
     ListConfig,
     LogEntry,
-    WantEntry,
 )
 
 CONFIG_FILE = "great.toml"
@@ -66,7 +66,8 @@ class Store:
     @classmethod
     def init(cls, root: Path, config: GreatConfig) -> "Store":
         """Initialize an empty data repo at ``root``."""
-        for sub in ("", "items", "comparisons", "log", "want"):
+        root.mkdir(parents=True, exist_ok=True)
+        for sub in ("items", "comparisons/want", "log", "want"):
             (root / sub).mkdir(parents=True, exist_ok=True)
         with (root / CONFIG_FILE).open("wb") as f:
             tomli_w.dump(_dump(config), f)
@@ -80,29 +81,11 @@ class Store:
         raise ListNotFoundError(f"unknown list: {name!r}")
 
     def items(self, kind: ItemKind) -> list[Item]:
-        """Return all items of the given kind, validating invariants."""
-        path = self.root / "items" / f"{KIND_PLURAL[kind]}.toml"
-        if not path.is_file():
-            return []
-        with path.open("rb") as f:
-            data = tomllib.load(f)
-        items: list[Item] = []
-        seen: set[str] = set()
-        for raw in data.get("items", []):
-            try:
-                item = Item.from_dict(raw, kind=kind)
-            except ValueError as e:
-                raise CorruptStoreError(f"{path}: {e}") from e
-            if item.id in seen:
-                raise CorruptStoreError(
-                    f"{path}: duplicate item id {item.id!r}",
-                )
-            seen.add(item.id)
-            items.append(item)
-        return items
+        """Return consumed items of the given kind (catalog only)."""
+        return self._read_items(self._items_path(kind), kind)
 
     def all_items(self) -> list[Item]:
-        """Return items across all kinds (id uniqueness is per-kind only)."""
+        """Return consumed items across all kinds."""
         return [
             item
             for kind in sorted({lst.kind for lst in self.config.lists})
@@ -110,31 +93,90 @@ class Store:
         ]
 
     def write_items(self, kind: ItemKind, items: list[Item]) -> None:
-        """Replace the items file for ``kind`` with ``items``."""
-        filename = f"{KIND_PLURAL[kind]}.toml"
-        for item in items:
-            if item.kind != kind:
-                raise ValueError(
-                    f"item {item.id!r} has kind {item.kind!r}, "
-                    f"cannot write to items/{filename}",
-                )
-        path = self.root / "items" / filename
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"items": [i.to_dict() for i in items]}
-        with path.open("wb") as f:
-            tomli_w.dump(payload, f)
+        """Replace the consumed-items file for ``kind`` with ``items``."""
+        self._write_items(self._items_path(kind), kind, items)
+
+    def wants(self, kind: ItemKind) -> list[Item]:
+        """Return want-queue items for ``kind`` (per kind, single queue)."""
+        return self._read_items(self._wants_path(kind), kind)
+
+    def write_wants(self, kind: ItemKind, items: list[Item]) -> None:
+        """Replace the want queue for ``kind`` with ``items``."""
+        self._write_items(self._wants_path(kind), kind, items)
+
+    def add_want(self, item: Item) -> bool:
+        """
+        Append ``item`` to its kind's want queue.
+
+        Returns ``True`` if newly added, ``False`` if already present.
+        Raises ``StoreError`` if the id is already in the consumed
+        catalog — the catalog and want queue are kept disjoint.
+        """
+        if any(i.id == item.id for i in self.items(item.kind)):
+            file_ = f"items/{KIND_PLURAL[item.kind]}.toml"
+            raise StoreError(
+                f"{item.id!r} is already in {file_}; "
+                "won't add to the want queue.",
+            )
+        wants = self.wants(item.kind)
+        if any(w.id == item.id for w in wants):
+            return False
+        wants.append(item)
+        self.write_wants(item.kind, wants)
+        return True
+
+    def remove_want(self, kind: ItemKind, item_id: str) -> bool:
+        """Remove ``item_id`` from ``kind``'s want queue; return if removed."""
+        wants = self.wants(kind)
+        kept = [w for w in wants if w.id != item_id]
+        if len(kept) == len(wants):
+            return False
+        self.write_wants(kind, kept)
+        return True
+
+    def promote_want(self, kind: ItemKind, item_id: str) -> Item | None:
+        """
+        Move ``item_id`` from the want queue into the consumed catalog.
+
+        Returns the promoted item, or ``None`` if not on the want queue.
+        Catalog uniqueness is preserved: if the id already exists in
+        ``items/<kind>.toml`` the want entry is dropped without
+        duplicating. The catalog write happens before the want
+        removal so an interrupted run leaves a recoverable duplicate
+        rather than a lost record.
+        """
+        wants = self.wants(kind)
+        promoted = next((w for w in wants if w.id == item_id), None)
+        if promoted is None:
+            return None
+        items = self.items(kind)
+        if not any(i.id == item_id for i in items):
+            items.append(promoted)
+            self.write_items(kind, items)
+        self.write_wants(kind, [w for w in wants if w.id != item_id])
+        return promoted
 
     def comparisons(self, list_name: str) -> list[Comparison]:
-        """Return all comparisons recorded for ``list_name``."""
-        path = self.root / "comparisons" / f"{list_name}.jsonl"
-        return [
-            Comparison.model_validate_json(line) for line in _read_jsonl(path)
-        ]
+        """Return all favorite-ranking comparisons for ``list_name``."""
+        return self._read_comparisons(self._comparisons_path(list_name))
 
-    def append_comparison(self, c: Comparison) -> None:
-        """Append a comparison to the list's JSONL log."""
-        path = self.root / "comparisons" / f"{c.list}.jsonl"
-        _append_jsonl(path, c.model_dump_json(exclude_none=True))
+    def append_comparison(self, list_name: str, c: Comparison) -> None:
+        """Append a favorite-ranking comparison to ``list_name``'s log."""
+        _append_jsonl(
+            self._comparisons_path(list_name),
+            c.model_dump_json(exclude_none=True),
+        )
+
+    def want_comparisons(self, kind: ItemKind) -> list[Comparison]:
+        """Return all want-ranking comparisons for ``kind``."""
+        return self._read_comparisons(self._want_comparisons_path(kind))
+
+    def append_want_comparison(self, kind: ItemKind, c: Comparison) -> None:
+        """Append a want-ranking comparison to ``kind``'s want log."""
+        _append_jsonl(
+            self._want_comparisons_path(kind),
+            c.model_dump_json(exclude_none=True),
+        )
 
     def log(self, year: int | None = None) -> list[LogEntry]:
         """Return diary entries (optionally filtered to a single year)."""
@@ -155,57 +197,64 @@ class Store:
         path = self.root / "log" / f"{entry.ts.year}.jsonl"
         _append_jsonl(path, entry.model_dump_json(exclude_none=True))
 
-    def wants(self, list_name: str) -> list[WantEntry]:
-        """Return want-to-consume entries for ``list_name``."""
-        path = self.root / "want" / f"{list_name}.toml"
+    def _items_path(self, kind: ItemKind) -> Path:
+        return self.root / "items" / f"{KIND_PLURAL[kind]}.toml"
+
+    def _wants_path(self, kind: ItemKind) -> Path:
+        return self.root / "want" / f"{KIND_PLURAL[kind]}.toml"
+
+    def _comparisons_path(self, list_name: str) -> Path:
+        return self.root / "comparisons" / f"{list_name}.jsonl"
+
+    def _want_comparisons_path(self, kind: ItemKind) -> Path:
+        return (
+            self.root / "comparisons" / "want" / f"{KIND_PLURAL[kind]}.jsonl"
+        )
+
+    def _read_items(self, path: Path, kind: ItemKind) -> list[Item]:
         if not path.is_file():
             return []
         with path.open("rb") as f:
             data = tomllib.load(f)
-        return [WantEntry.model_validate(w) for w in data.get("wants", [])]
+        items: list[Item] = []
+        seen: set[str] = set()
+        for raw in data.get("items", []):
+            try:
+                item = Item.from_dict(raw, kind=kind)
+            except ValueError as e:
+                raise CorruptStoreError(f"{path}: {e}") from e
+            if item.id in seen:
+                raise CorruptStoreError(
+                    f"{path}: duplicate item id {item.id!r}",
+                )
+            seen.add(item.id)
+            items.append(item)
+        return items
 
-    def add_want(self, list_name: str, want: WantEntry) -> None:
-        """Append a want-entry, rewriting the list's TOML file."""
-        existing = self.wants(list_name)
-        existing.append(want)
-        self._write_wants(list_name, existing)
-
-    def remove_want(self, list_name: str, item_id: str) -> bool:
-        """Remove ``item_id`` from ``list_name``; return whether it existed."""
-        wants = self.wants(list_name)
-        kept = [w for w in wants if w.item != item_id]
-        if len(kept) == len(wants):
-            return False
-        self._write_wants(list_name, kept)
-        return True
-
-    def discard_from_wants(self, item_id: str, kind: ItemKind) -> int:
-        """Remove ``item_id`` from want lists of ``kind``; return count."""
-        want_dir = self.root / "want"
-        if not want_dir.is_dir():
-            return 0
-        list_names = {
-            lst.name for lst in self.config.lists if lst.kind == kind
-        }
-        return sum(
-            1
-            for path in want_dir.glob("*.toml")
-            if path.stem in list_names and self.remove_want(path.stem, item_id)
-        )
-
-    def _write_wants(
+    def _write_items(
         self,
-        list_name: str,
-        wants: list[WantEntry],
+        path: Path,
+        kind: ItemKind,
+        items: list[Item],
     ) -> None:
-        path = self.root / "want" / f"{list_name}.toml"
-        if not wants:
+        for item in items:
+            if item.kind != kind:
+                raise ValueError(
+                    f"item {item.id!r} has kind {item.kind!r}, "
+                    f"cannot write to {path}",
+                )
+        if not items:
             path.unlink(missing_ok=True)
             return
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"wants": [_dump(w) for w in wants]}
+        payload = {"items": [i.to_dict() for i in items]}
         with path.open("wb") as f:
             tomli_w.dump(payload, f)
+
+    def _read_comparisons(self, path: Path) -> list[Comparison]:
+        return [
+            Comparison.model_validate_json(line) for line in _read_jsonl(path)
+        ]
 
 
 def _dump(model: BaseModel) -> dict[str, Any]:

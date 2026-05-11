@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -8,11 +8,11 @@ from great.models import (
     Item,
     ListConfig,
     LogEntry,
-    WantEntry,
 )
 from great.store import (
     ListNotFoundError,
     Store,
+    StoreError,
     StoreNotFoundError,
 )
 
@@ -31,7 +31,7 @@ def store(tmp_path):
 def test_init_creates_layout(tmp_path):
     Store.init(tmp_path, GreatConfig())
     assert (tmp_path / "great.toml").is_file()
-    for sub in ("items", "comparisons", "log", "want"):
+    for sub in ("items", "comparisons", "comparisons/want", "log", "want"):
         assert (tmp_path / sub).is_dir()
 
 
@@ -92,22 +92,31 @@ def test_items_missing_returns_empty(store):
 def test_comparisons_append_and_read(store):
     c1 = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
-        list="movies",
         items=["tt1", "tt2"],
         ordering=[[0], [1]],
     )
     c2 = Comparison(
         ts=datetime(2026, 5, 9, 14, 5, tzinfo=UTC),
-        list="movies",
         items=["tt1", "tt3"],
         ordering=[[0, 1]],
     )
-    store.append_comparison(c1)
-    store.append_comparison(c2)
+    store.append_comparison("movies", c1)
+    store.append_comparison("movies", c2)
     assert store.comparisons("movies") == [c1, c2]
 
 
 def test_comparisons_missing_returns_empty(store):
+    assert store.comparisons("movies") == []
+
+
+def test_want_comparisons_round_trip(store):
+    c = Comparison(
+        ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
+        items=["tt1", "tt2"],
+        ordering=[[0], [1]],
+    )
+    store.append_want_comparison("movie", c)
+    assert store.want_comparisons("movie") == [c]
     assert store.comparisons("movies") == []
 
 
@@ -133,15 +142,59 @@ def test_log_split_by_year(store):
 
 
 def test_wants_round_trip(store):
-    w1 = WantEntry(item="tt1", added=date(2026, 5, 9))
-    w2 = WantEntry(item="tt2", added=date(2026, 5, 10), priority="high")
-    store.add_want("movies", w1)
-    store.add_want("movies", w2)
-    assert store.wants("movies") == [w1, w2]
+    w1 = Item(id="tt1", kind="movie", title="Anora")
+    w2 = Item(id="tt2", kind="movie", title="Conclave", year=2024)
+    store.add_want(w1)
+    store.add_want(w2)
+    assert store.wants("movie") == [w1, w2]
 
 
 def test_wants_missing_returns_empty(store):
-    assert store.wants("movies") == []
+    assert store.wants("movie") == []
+
+
+def test_add_want_is_idempotent(store):
+    assert store.add_want(Item(id="tt1", kind="movie", title="Anora")) is True
+    assert store.add_want(Item(id="tt1", kind="movie", title="Anora")) is False
+    assert len(store.wants("movie")) == 1
+
+
+def test_add_want_rejects_already_consumed(store):
+    store.write_items("movie", [Item(id="tt1", kind="movie", title="Anora")])
+    with pytest.raises(StoreError, match="already in items"):
+        store.add_want(Item(id="tt1", kind="movie", title="Anora"))
+
+
+def test_remove_want(store):
+    store.add_want(Item(id="tt1", kind="movie", title="Anora"))
+    assert store.remove_want("movie", "tt1") is True
+    assert store.wants("movie") == []
+    assert store.remove_want("movie", "tt1") is False
+
+
+def test_promote_want_moves_record(store):
+    item = Item(id="tt1", kind="movie", title="Anora", year=2024)
+    store.add_want(item)
+    promoted = store.promote_want("movie", "tt1")
+    assert promoted == item
+    assert store.wants("movie") == []
+    assert store.items("movie") == [item]
+
+
+def test_promote_want_missing_returns_none(store):
+    assert store.promote_want("movie", "tt1") is None
+
+
+def test_promote_want_skips_duplicate_in_catalog(store):
+    item = Item(id="tt1", kind="movie", title="Anora")
+    store.write_items("movie", [item])
+    # Bypass the add_want disjointness guard to simulate a recovered
+    # mid-promotion state (catalog + want both contain the record).
+    store.write_wants("movie", [item])
+    promoted = store.promote_want("movie", "tt1")
+    assert promoted == item
+    assert store.wants("movie") == []
+    assert store.items("movie") == [item]
 
 
 def test_items_rejects_kind_in_file(store):

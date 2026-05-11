@@ -4,9 +4,7 @@ import pytest
 from great._cli import (
     AmbiguousItemError,
     ItemNotFoundError,
-    NoWantListError,
     app,
-    infer_want_list,
     resolve_item,
 )
 from great.models import GreatConfig, Item, ListConfig
@@ -83,25 +81,14 @@ def test_resolve_ambiguous_with_kind_disambiguates(store):
     assert resolve_item(store, "Anora", kind="tv").id == "tv2"
 
 
-def test_infer_want_list_unique(store):
-    assert infer_want_list(store, "movie") == "movies"
-
-
-def test_infer_want_list_missing(store):
-    with pytest.raises(NoWantListError):
-        infer_want_list(store, "song")
-
-
-def test_infer_want_list_ambiguous(tmp_path):
-    config = GreatConfig(
-        lists=[
-            ListConfig(name="movies", kind="movie"),
-            ListConfig(name="movies-2024", kind="movie"),
-        ],
+def test_resolve_can_include_wants(store):
+    pick = Item(id="Watchlist Pick", kind="movie", title="Watchlist Pick")
+    store.add_want(pick)
+    assert resolve_item(store, "Watchlist Pick", include_wants=True).id == (
+        "Watchlist Pick"
     )
-    store = Store.init(tmp_path, config)
-    with pytest.raises(NoWantListError):
-        infer_want_list(store, "movie")
+    with pytest.raises(ItemNotFoundError):
+        resolve_item(store, "Watchlist Pick")
 
 
 def test_log_command_records_entry(store):
@@ -218,110 +205,147 @@ def test_consumed_command(store):
     assert entry.status == "consumed"
 
 
-def test_want_command_infers_list(store):
-    result = CliRunner().invoke(
-        app,
-        ["--root", str(store.root), "want", "Casablanca"],
-    )
-    assert result.exit_code == 0
-    [w] = store.wants("movies")
-    assert w.item == "tt2"
-    assert w.priority == "normal"
-
-
-def test_want_command_explicit_list_and_priority(store):
+def test_want_command_adds_free_title(store):
     result = CliRunner().invoke(
         app,
         [
             "--root",
             str(store.root),
             "want",
-            "Severance",
-            "--list",
+            "Brand New Cherry Flavor",
+            "--kind",
             "tv",
-            "--priority",
-            "high",
         ],
     )
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     [w] = store.wants("tv")
-    assert w.priority == "high"
+    assert w.title == "Brand New Cherry Flavor"
+    assert w.kind == "tv"
+    assert w.id == "Brand New Cherry Flavor"
 
 
-def test_log_prunes_item_from_want_list(store):
-    CliRunner().invoke(
-        app,
-        ["--root", str(store.root), "want", "Casablanca"],
-    )
-    assert len(store.wants("movies")) == 1
-
+def test_want_command_with_year_and_id(store):
     result = CliRunner().invoke(
         app,
-        ["--root", str(store.root), "consumed", "Casablanca"],
-    )
-    assert result.exit_code == 0
-    assert "removed from 1 want list" in result.output.lower()
-    assert store.wants("movies") == []
-
-
-def test_log_prunes_across_multiple_want_lists(tmp_path):
-    config = GreatConfig(
-        lists=[
-            ListConfig(name="movies", kind="movie"),
-            ListConfig(name="favorites", kind="movie"),
+        [
+            "--root",
+            str(store.root),
+            "want",
+            "Casablanca II",
+            "--kind",
+            "movie",
+            "--year",
+            "2030",
+            "--id",
+            "tt-cas2",
         ],
     )
-    store = Store.init(tmp_path, config)
-    store.write_items(
-        "movie",
-        [Item(id="tt1", kind="movie", title="Anora")],
+    assert result.exit_code == 0, result.output
+    [w] = store.wants("movie")
+    assert w.id == "tt-cas2"
+    assert w.year == 2030
+
+
+def test_want_command_requires_kind(store):
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(store.root), "want", "Some Title"],
     )
+    assert result.exit_code != 0
+
+
+def test_want_command_rejects_already_consumed(store):
+    # Re-add the same id that already exists in items/movies.toml (tt2).
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(store.root),
+            "want",
+            "Casablanca II",
+            "--kind",
+            "movie",
+            "--id",
+            "tt2",
+        ],
+    )
+    assert result.exit_code == 1
+    err = (result.output + (result.stderr or "")).lower()
+    assert "already in items" in err
+    assert store.wants("movie") == []
+
+
+def test_consumed_promotes_want_to_catalog(store):
     CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "want", "Anora", "--list", "movies"],
+        [
+            "--root",
+            str(store.root),
+            "want",
+            "Brand New Cherry Flavor",
+            "--kind",
+            "tv",
+        ],
     )
+    assert len(store.wants("tv")) == 1
+
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(store.root), "consumed", "Brand New Cherry Flavor"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "promoted from want queue" in result.output.lower()
+    assert store.wants("tv") == []
+    titles = {i.title for i in store.items("tv")}
+    assert "Brand New Cherry Flavor" in titles
+
+
+def test_started_status_does_not_promote_want(store):
     CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "want", "Anora", "--list", "favorites"],
+        [
+            "--root",
+            str(store.root),
+            "want",
+            "Brand New Cherry Flavor",
+            "--kind",
+            "tv",
+        ],
     )
     result = CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "consumed", "Anora", "--kind", "movie"],
+        [
+            "--root",
+            str(store.root),
+            "log",
+            "Brand New Cherry Flavor",
+            "--status",
+            "started",
+        ],
     )
-    assert result.exit_code == 0
-    assert "removed from 2 want lists" in result.output.lower()
-    assert store.wants("movies") == []
-    assert store.wants("favorites") == []
+    assert result.exit_code == 0, result.output
+    assert "promoted" not in result.output.lower()
+    assert len(store.wants("tv")) == 1
 
 
-def test_log_does_not_remove_other_items(store):
+def test_unwant_removes_from_kind(store):
     CliRunner().invoke(
         app,
-        ["--root", str(store.root), "want", "Anora", "--kind", "movie"],
-    )
-    CliRunner().invoke(
-        app,
-        ["--root", str(store.root), "want", "Casablanca"],
-    )
-    CliRunner().invoke(
-        app,
-        ["--root", str(store.root), "consumed", "Anora", "--kind", "movie"],
-    )
-    [remaining] = store.wants("movies")
-    assert remaining.item == "tt2"
-
-
-def test_unwant_removes_from_all_when_no_list(store):
-    CliRunner().invoke(
-        app,
-        ["--root", str(store.root), "want", "Casablanca"],
+        [
+            "--root",
+            str(store.root),
+            "want",
+            "Brand New Cherry Flavor",
+            "--kind",
+            "tv",
+        ],
     )
     result = CliRunner().invoke(
         app,
-        ["--root", str(store.root), "unwant", "Casablanca"],
+        ["--root", str(store.root), "unwant", "Brand New Cherry Flavor"],
     )
-    assert result.exit_code == 0
-    assert store.wants("movies") == []
+    assert result.exit_code == 0, result.output
+    assert store.wants("tv") == []
 
 
 def test_unwant_no_op_for_unwanted_item(store):
@@ -330,51 +354,31 @@ def test_unwant_no_op_for_unwanted_item(store):
         ["--root", str(store.root), "unwant", "Casablanca"],
     )
     assert result.exit_code == 0
-    assert "not on any want list" in result.output.lower()
+    assert "not on any want queue" in result.output.lower()
 
 
-def test_unwant_specific_list(tmp_path):
-    config = GreatConfig(
-        lists=[
-            ListConfig(name="movies", kind="movie"),
-            ListConfig(name="favorites", kind="movie"),
-        ],
-    )
-    store = Store.init(tmp_path, config)
-    store.write_items(
-        "movie",
-        [Item(id="tt1", kind="movie", title="Anora")],
+def test_unwant_ambiguous_across_kinds_requires_kind(store):
+    CliRunner().invoke(
+        app,
+        ["--root", str(store.root), "want", "Dual", "--kind", "movie"],
     )
     CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "want", "Anora", "--list", "movies"],
-    )
-    CliRunner().invoke(
-        app,
-        ["--root", str(tmp_path), "want", "Anora", "--list", "favorites"],
-    )
-    CliRunner().invoke(
-        app,
-        ["--root", str(tmp_path), "unwant", "Anora", "--list", "movies"],
-    )
-    assert store.wants("movies") == []
-    assert len(store.wants("favorites")) == 1
-
-
-def test_want_command_ambiguous_list_requires_flag(tmp_path):
-    config = GreatConfig(
-        lists=[
-            ListConfig(name="movies", kind="movie"),
-            ListConfig(name="movies-2024", kind="movie"),
-        ],
-    )
-    store = Store.init(tmp_path, config)
-    store.write_items(
-        "movie",
-        [Item(id="tt1", kind="movie", title="Anora")],
+        ["--root", str(store.root), "want", "Dual", "--kind", "tv"],
     )
     result = CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "want", "Anora"],
+        ["--root", str(store.root), "unwant", "Dual"],
     )
     assert result.exit_code == 1
+    assert "matches 2 want entries" in result.output.lower() or (
+        "matches 2 want entries" in (result.stderr or "")
+    )
+
+    result_ok = CliRunner().invoke(
+        app,
+        ["--root", str(store.root), "unwant", "Dual", "--kind", "movie"],
+    )
+    assert result_ok.exit_code == 0
+    assert store.wants("movie") == []
+    assert len(store.wants("tv")) == 1

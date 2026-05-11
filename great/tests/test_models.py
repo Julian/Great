@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from pydantic import ValidationError
 import pytest
@@ -9,7 +9,6 @@ from great.models import (
     Item,
     ListConfig,
     LogEntry,
-    WantEntry,
 )
 
 
@@ -65,7 +64,6 @@ def test_item_round_trip_preserves_defaulted_id():
 def test_comparison_pairwise():
     c = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
-        list="movies",
         items=["a", "b"],
         ordering=[[0], [1]],
     )
@@ -75,7 +73,6 @@ def test_comparison_pairwise():
 def test_comparison_kway():
     c = Comparison(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
-        list="movies",
         items=["a", "b", "c"],
         ordering=[[2], [0], [1]],
     )
@@ -86,7 +83,6 @@ def test_comparison_kway():
 def test_comparison_tie():
     c = Comparison(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
-        list="movies",
         items=["a", "b"],
         ordering=[[0, 1]],
     )
@@ -96,7 +92,6 @@ def test_comparison_tie():
 def test_comparison_partial_tie():
     c = Comparison(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
-        list="movies",
         items=["a", "b", "c"],
         ordering=[[2], [0, 1]],
     )
@@ -107,7 +102,6 @@ def test_comparison_requires_two_items():
     with pytest.raises(ValidationError):
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            list="movies",
             items=["only-one"],
             ordering=[[0]],
         )
@@ -117,7 +111,6 @@ def test_comparison_rejects_non_partition():
     with pytest.raises(ValidationError, match="partition"):
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            list="movies",
             items=["a", "b"],
             ordering=[[0], [0]],
         )
@@ -127,7 +120,6 @@ def test_comparison_rejects_empty_group():
     with pytest.raises(ValidationError, match="non-empty"):
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            list="movies",
             items=["a", "b"],
             ordering=[[0, 1], []],
         )
@@ -142,11 +134,6 @@ def test_log_entry_minimal():
     )
     assert entry.notes is None
     assert entry.kind == "movie"
-
-
-def test_want_entry_default_priority():
-    want = WantEntry(item="tt1", added=date(2026, 5, 9))
-    assert want.priority == "normal"
 
 
 def test_great_config_defaults():

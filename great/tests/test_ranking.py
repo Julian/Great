@@ -20,7 +20,6 @@ def _movie(id_: str, title: str | None = None) -> Item:
 def _comp(items_: list[str], ordering, when: int = 1) -> Comparison:
     return Comparison(
         ts=datetime(2026, 5, when, tzinfo=UTC),
-        list="movies",
         items=items_,
         ordering=ordering,
     )

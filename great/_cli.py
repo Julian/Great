@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
-from typing import Annotated, get_args
+from typing import Annotated, Any, get_args
 import contextlib
 import random
 import textwrap
@@ -20,11 +20,9 @@ from great.models import (
     ListConfig,
     LogEntry,
     LogStatus,
-    Priority,
-    WantEntry,
 )
 from great.ranking import MIN_K, infer, rescale_to_quantiles, select_cluster
-from great.render import N_QUANTILES, build_site, tier_label
+from great.render import N_QUANTILES, build_site, rank_by_score, tier_label
 from great.store import (
     ListNotFoundError,
     Store,
@@ -62,9 +60,9 @@ def _example_items_toml(kind: ItemKind) -> str:
     """Body for an empty items file with a commented schema example."""
     header = f"# Items of kind `{kind}` go here, one [[items]] table each.\n"
     body = (
-        "# Required keys per item: `id` and `title`. Optional: `year`,\n"
-        "# `external_ids`, `metadata`. The `kind` is implied by the\n"
-        "# filename and must not appear inside [[items]].\n"
+        "# Required key per item: `title`. Optional: `id` (defaults to\n"
+        "# the title), `year`, `external_ids`, `metadata`. The `kind` is\n"
+        "# implied by the filename and must not appear inside [[items]].\n"
         "#\n"
     )
     commented = "".join(
@@ -95,16 +93,11 @@ class AmbiguousItemError(Exception):
     """Multiple items matched the given lookup query."""
 
 
-class NoWantListError(Exception):
-    """No unique want list could be inferred for an item's kind."""
-
-
 _FRIENDLY = (
     AmbiguousItemError,
     InsufficientItemsError,
     ItemNotFoundError,
     ListNotFoundError,
-    NoWantListError,
     StoreError,
     StoreNotFoundError,
 )
@@ -150,20 +143,36 @@ def _root(
 @app.command()
 def show(
     ctx: typer.Context,
-    list_name: Annotated[
+    target: Annotated[
         str,
-        typer.Argument(help="Name of the list to show."),
+        typer.Argument(
+            help="List name (favorites) or item kind (with --want).",
+        ),
     ],
+    want: Annotated[
+        bool,
+        typer.Option(
+            "--want/--no-want",
+            help="Show the want-to-watch ranking for the given kind.",
+        ),
+    ] = False,
 ) -> None:
-    """Print the inferred ranking for a list."""
+    """Print the inferred ranking for a list (or for --want <kind>)."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        list_config = store.list_config(list_name)
-        items = store.items(list_config.kind)
-        comparisons = store.comparisons(list_name)
+        if want:
+            kind = _parse_kind(target)
+            items = store.wants(kind)
+            comparisons = store.want_comparisons(kind)
+        else:
+            list_config = store.list_config(target)
+            items = store.items(list_config.kind)
+            comparisons = store.comparisons(target)
         scores = infer(comparisons, items)
         if not items:
             return
+        # Tiers are quality strata for consumed items; the want ranking
+        # is watch-order priority, where D..S labels would mislead.
         tiers = (
             {
                 iid: tier_label(q)
@@ -172,14 +181,10 @@ def show(
                     n_quantiles=N_QUANTILES,
                 ).items()
             }
-            if comparisons
+            if comparisons and not want
             else {}
         )
-        by_score = sorted(
-            items,
-            key=lambda i: (-scores[i.id].mean, i.title.casefold()),
-        )
-        for rank_, item in enumerate(by_score, start=1):
+        for rank_, item in enumerate(rank_by_score(items, scores), start=1):
             s = scores[item.id]
             suffix = f" ({item.year})" if item.year is not None else ""
             tier = f"[{tiers[item.id]}] " if item.id in tiers else ""
@@ -187,6 +192,16 @@ def show(
                 f"{rank_:3d}. {tier}{item.title}{suffix}  "
                 f"score={s.mean:+.2f} sd={s.variance**0.5:.2f}",
             )
+
+
+def _parse_kind(value: str) -> ItemKind:
+    """Validate a string against the ItemKind literal type."""
+    for kind in get_args(ItemKind):
+        if value == kind:
+            return kind
+    raise typer.BadParameter(
+        f"{value!r} is not a valid kind. Choose one of: {ITEM_KINDS}.",
+    )
 
 
 @app.command(name="lists")
@@ -221,7 +236,12 @@ def diary(
         if not entries:
             typer.echo("No diary entries.")
             return
-        titles = {(i.kind, i.id): i.title for i in store.all_items()}
+        kinds = {lst.kind for lst in store.config.lists}
+        titles = {
+            (i.kind, i.id): i.title
+            for k in kinds
+            for i in [*store.items(k), *store.wants(k)]
+        }
         for e in entries:
             title = titles.get((e.kind, e.item), e.item)
             tail = f" — {e.notes}" if e.notes else ""
@@ -233,10 +253,19 @@ def diary(
 @app.command()
 def rank(
     ctx: typer.Context,
-    list_name: Annotated[
+    target: Annotated[
         str,
-        typer.Argument(help="Name of the list to rank."),
+        typer.Argument(
+            help="List name (favorites) or item kind (with --want).",
+        ),
     ],
+    want: Annotated[
+        bool,
+        typer.Option(
+            "--want/--no-want",
+            help="Rank the want-to-watch queue for the given kind.",
+        ),
+    ] = False,
     max_iters: Annotated[
         int,
         typer.Option(
@@ -250,7 +279,8 @@ def rank(
         store = Store.find(ctx.obj)
         run_rank_loop(
             store,
-            list_name,
+            target,
+            want=want,
             session=run_rank_session,
             max_iters=max_iters,
         )
@@ -258,8 +288,9 @@ def rank(
 
 def run_rank_loop(
     store: Store,
-    list_name: str,
+    target: str,
     *,
+    want: bool = False,
     session: Session,
     max_iters: int = RANK_MAX_ITERS_DEFAULT,
     rng: random.Random | None = None,
@@ -272,21 +303,39 @@ def run_rank_loop(
     the proposed cluster of items and returns either an ordering
     (list of tie groups) or ``None`` to end the session early.
 
+    With ``want=True``, ``target`` is interpreted as an item kind and
+    the session ranks that kind's want queue; comparisons are routed
+    to ``comparisons/want/<kind>.jsonl``. Otherwise ``target`` is a
+    list name as declared in ``great.toml``.
+
     Returns the number of comparisons appended to the store.
     """
-    list_config = store.list_config(list_name)
-    items = store.items(list_config.kind)
+    if want:
+        kind = _parse_kind(target)
+        items = store.wants(kind)
+        comparisons = list(store.want_comparisons(kind))
+        scope_label = f"want {kind!r}"
+        how_to_add = (
+            f"Add items via 'great want \"<title>\" --kind {kind}' "
+            f"or by editing want/{KIND_PLURAL[kind]}.toml directly."
+        )
+    else:
+        list_config = store.list_config(target)
+        items = store.items(list_config.kind)
+        comparisons = list(store.comparisons(target))
+        scope_label = repr(target)
+        items_file = f"items/{KIND_PLURAL[list_config.kind]}.toml"
+        how_to_add = f"Add items to {items_file}, e.g.:\n\n" + textwrap.indent(
+            EXAMPLE_ITEM_BLOCK.rstrip(), "  "
+        )
+
     if len(items) < MIN_K:
-        items_path = f"items/{KIND_PLURAL[list_config.kind]}.toml"
         raise InsufficientItemsError(
-            f"Need at least {MIN_K} items to rank `{list_name}`, "
-            f"found {len(items)}.\n"
-            f"Add items to {items_path}, e.g.:\n\n"
-            + textwrap.indent(EXAMPLE_ITEM_BLOCK.rstrip(), "  "),
+            f"Need at least {MIN_K} items to rank {scope_label}, "
+            f"found {len(items)}.\n" + how_to_add,
         )
 
     rng = rng or random.Random()  # noqa: S311 (not security-sensitive)
-    comparisons = list(store.comparisons(list_name))
     by_id = {item.id: item for item in items}
     appended = 0
 
@@ -311,35 +360,57 @@ def run_rank_loop(
 
         c = Comparison(
             ts=datetime.now(UTC),
-            list=list_name,
             items=cluster_ids,
             ordering=result,
         )
-        store.append_comparison(c)
+        if want:
+            store.append_want_comparison(kind, c)
+        else:
+            store.append_comparison(target, c)
         comparisons.append(c)
         appended += 1
 
     return appended
 
 
+def _matches(item: Item, query: str, folded_query: str) -> bool:
+    """Lookup predicate: exact id, case-insensitive title, or external id."""
+    return (
+        item.id == query
+        or item.title.casefold() == folded_query
+        or query in item.external_ids.values()
+    )
+
+
 def resolve_item(
     store: Store,
     query: str,
     kind: ItemKind | None = None,
+    *,
+    include_wants: bool = False,
 ) -> Item:
-    """Find an item by id, exact (case-insensitive) title, or external id."""
+    """
+    Find an item by id, exact (case-insensitive) title, or external id.
+
+    By default only the consumed catalog is searched. With
+    ``include_wants=True`` the want queue is searched too — used by
+    ``great log`` so that consuming a wanted item promotes it.
+    """
     kinds: set[ItemKind] = (
         {kind} if kind else {lst.kind for lst in store.config.lists}
     )
     folded = query.casefold()
-    candidates = [
-        item
-        for k in kinds
-        for item in store.items(k)
-        if item.id == query
-        or item.title.casefold() == folded
-        or query in item.external_ids.values()
-    ]
+    candidates: list[Item] = []
+    for k in kinds:
+        sources = [store.items(k)]
+        if include_wants:
+            sources.append(store.wants(k))
+        candidates.extend(
+            item
+            for source in sources
+            for item in source
+            if _matches(item, query, folded)
+        )
     if not candidates:
         raise ItemNotFoundError(f"no item matching {query!r}")
     if len(candidates) > 1:
@@ -349,22 +420,6 @@ def resolve_item(
         raise AmbiguousItemError(
             f"{query!r} matches {len(candidates)} items: {listed}. "
             "Pass --kind or use an exact id.",
-        )
-    return candidates[0]
-
-
-def infer_want_list(store: Store, kind: ItemKind) -> str:
-    """Return the unique configured list for ``kind``, or raise."""
-    candidates = [lst.name for lst in store.config.lists if lst.kind == kind]
-    if not candidates:
-        raise NoWantListError(
-            f"no list configured for kind {kind!r}. "
-            "Add one to great.toml or pass --list.",
-        )
-    if len(candidates) > 1:
-        raise NoWantListError(
-            f"multiple lists for kind {kind!r}: {', '.join(candidates)}. "
-            "Pass --list to disambiguate.",
         )
     return candidates[0]
 
@@ -403,7 +458,11 @@ def log_(
     """Append a consumption-diary entry."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        resolved = resolve_item(store, item, kind=kind)
+        resolved = resolve_item(store, item, kind=kind, include_wants=True)
+        promoted = (
+            status == "consumed"
+            and store.promote_want(resolved.kind, resolved.id) is not None
+        )
         store.append_log(
             LogEntry(
                 ts=_resolve_ts(at),
@@ -413,11 +472,9 @@ def log_(
                 notes=notes,
             ),
         )
-        pruned = store.discard_from_wants(resolved.id, resolved.kind)
         typer.echo(f"Logged {status}: {resolved.title}")
-        if pruned:
-            suffix = "s" if pruned > 1 else ""
-            typer.echo(f"  (removed from {pruned} want list{suffix})")
+        if promoted:
+            typer.echo("  (promoted from want queue)")
 
 
 @app.command()
@@ -447,72 +504,78 @@ def consumed(
 @app.command()
 def want(
     ctx: typer.Context,
-    item: Annotated[str, typer.Argument(help="Item id or exact title.")],
-    list_name: Annotated[
+    title: Annotated[
+        str,
+        typer.Argument(help="Title of the item to add to the want queue."),
+    ],
+    kind: Annotated[
+        ItemKind,
+        typer.Option("--kind", help=f"Item kind ({ITEM_KINDS})."),
+    ],
+    year: Annotated[
+        int | None,
+        typer.Option("--year", help="Release year (optional)."),
+    ] = None,
+    id_: Annotated[
         str | None,
         typer.Option(
-            "--list",
-            "-l",
-            help="Want list (defaults to the unique list for the kind).",
+            "--id",
+            help="Override the item id (defaults to the title).",
         ),
     ] = None,
-    priority: Annotated[
-        Priority,
-        typer.Option("--priority", "-p"),
-    ] = "normal",
-    kind: Annotated[
-        ItemKind | None,
-        typer.Option("--kind", help="Restrict lookup to a single kind."),
-    ] = None,
 ) -> None:
-    """Add an item to a want-to-consume queue."""
+    """Add a free-form title to the want-to-consume queue for ``kind``."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        resolved = resolve_item(store, item, kind=kind)
-        target = list_name or infer_want_list(store, resolved.kind)
-        store.add_want(
-            target,
-            WantEntry(
-                item=resolved.id,
-                added=datetime.now(UTC).date(),
-                priority=priority,
-            ),
-        )
-        typer.echo(f"Added to {target!r}: {resolved.title}")
+        data: dict[str, Any] = {"title": title}
+        if id_ is not None:
+            data["id"] = id_
+        if year is not None:
+            data["year"] = year
+        item = Item.from_dict(data, kind=kind)
+        added = store.add_want(item)
+        verb = "Added to" if added else "Already on"
+        typer.echo(f"{verb} want/{KIND_PLURAL[kind]}: {item.title}")
 
 
 @app.command()
 def unwant(
     ctx: typer.Context,
     item: Annotated[str, typer.Argument(help="Item id or exact title.")],
-    list_name: Annotated[
-        str | None,
-        typer.Option(
-            "--list",
-            "-l",
-            help="Want list (defaults to all that contain the item).",
-        ),
-    ] = None,
     kind: Annotated[
         ItemKind | None,
         typer.Option("--kind", help="Restrict lookup to a single kind."),
     ] = None,
 ) -> None:
-    """Remove an item from one or all want queues."""
+    """Remove an item from its kind's want queue."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        resolved = resolve_item(store, item, kind=kind)
-        if list_name is None:
-            removed = store.discard_from_wants(resolved.id, resolved.kind)
-        else:
-            removed = int(store.remove_want(list_name, resolved.id))
-        if removed:
-            suffix = "s" if removed > 1 else ""
-            typer.echo(
-                f"Removed from {removed} want list{suffix}: {resolved.title}",
+        kinds: set[ItemKind] = (
+            {kind} if kind else {lst.kind for lst in store.config.lists}
+        )
+        folded = item.casefold()
+        matches: list[tuple[ItemKind, Item]] = [
+            (k, w)
+            for k in kinds
+            for w in store.wants(k)
+            if _matches(w, item, folded)
+        ]
+        if not matches:
+            typer.echo(f"Not on any want queue: {item}")
+            return
+        if len(matches) > 1:
+            listed = ", ".join(
+                f"{w.title!r} (kind={k}, id={w.id})" for k, w in matches
             )
-        else:
-            typer.echo(f"Not on any want list: {resolved.title}")
+            raise AmbiguousItemError(
+                f"{item!r} matches {len(matches)} want entries: {listed}. "
+                "Pass --kind or use an exact id.",
+            )
+        [(matched_kind, matched)] = matches
+        store.remove_want(matched_kind, matched.id)
+        typer.echo(
+            f"Removed from want/{KIND_PLURAL[matched_kind]}: {matched.title}"
+        )
 
 
 @app.command()
@@ -559,9 +622,9 @@ def init(
                 "Declare a list, given as NAME:KIND (repeatable). "
                 "NAME is yours to pick (e.g. 'movies', 'top-films'); "
                 f"KIND is one of: {ITEM_KINDS}. "
-                "Each list doubles as its own want queue, so prefer one "
-                "list per kind (multiple lists of the same kind require "
-                "passing --list to `great want`). "
+                "Each kind has a single shared want-to-consume queue at "
+                "want/<kind>.toml (independent of how many favorite-lists "
+                "you configure for that kind). "
                 "If omitted, one list per kind is seeded with default names."
             ),
         ),
