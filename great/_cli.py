@@ -6,14 +6,16 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Any, get_args
 import contextlib
-import random
-import textwrap
 
 import typer
 
+from great.lookup import (
+    AmbiguousItemError,
+    ItemNotFoundError,
+    resolve_item,
+)
 from great.models import (
     KIND_PLURAL,
-    Comparison,
     GreatConfig,
     Item,
     ItemKind,
@@ -21,19 +23,23 @@ from great.models import (
     LogEntry,
     LogStatus,
 )
-from great.ranking import MIN_K, infer, rescale_to_quantiles, select_cluster
+from great.ranking import MIN_K, infer, rescale_to_quantiles
 from great.render import N_QUANTILES, build_site, rank_by_score, tier_label
+from great.session import (
+    EXAMPLE_ITEM_BLOCK,
+    RANK_MAX_ITERS_DEFAULT,
+    InsufficientItemsError,
+    RankingScope,
+    add_items,
+    run_rank_loop,
+)
 from great.store import (
     ListNotFoundError,
     Store,
     StoreError,
     StoreNotFoundError,
 )
-from great.tui import Session, run_rank_session
-
-RANDOM_SEED_EVERY = 5
-RANK_MAX_ITERS_DEFAULT = 100
-MAX_K = 5
+from great.tui import run_rank_session
 
 ITEM_KINDS = ", ".join(get_args(ItemKind))
 
@@ -47,13 +53,6 @@ DEFAULT_LISTS: tuple[ListConfig, ...] = (
     ListConfig(name="podcasts", kind="podcast"),
     ListConfig(name="games", kind="game"),
 )
-
-EXAMPLE_ITEM_BLOCK = """\
-[[items]]
-id = "tt0068646"        # any globally-unique id (IMDB, MusicBrainz, ...)
-title = "The Godfather"
-year = 1972             # optional
-"""
 
 
 def _example_items_toml(kind: ItemKind) -> str:
@@ -79,18 +78,6 @@ PAGES_WORKFLOW = (
         encoding="utf-8",
     )
 )
-
-
-class InsufficientItemsError(Exception):
-    """A list has fewer than the minimum items needed to rank."""
-
-
-class ItemNotFoundError(Exception):
-    """No item matched the given lookup query."""
-
-
-class AmbiguousItemError(Exception):
-    """Multiple items matched the given lookup query."""
 
 
 _FRIENDLY = (
@@ -160,16 +147,9 @@ def show(
     """Print the inferred ranking for a list (or for --want <kind>)."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        if want:
-            kind = _parse_kind(target)
-            items = store.wants(kind)
-            comparisons = store.want_comparisons(kind)
-        else:
-            list_config = store.list_config(target)
-            items = store.items(list_config.kind)
-            comparisons = store.comparisons(target)
-        scores = infer(comparisons, items)
-        if not items:
+        scope = _scope_for(store, target, want=want)
+        scores = infer(scope.comparisons, scope.items)
+        if not scope.items:
             return
         # Tiers are quality strata for consumed items; the want ranking
         # is watch-order priority, where D..S labels would mislead.
@@ -181,10 +161,13 @@ def show(
                     n_quantiles=N_QUANTILES,
                 ).items()
             }
-            if comparisons and not want
+            if scope.comparisons and not want
             else {}
         )
-        for rank_, item in enumerate(rank_by_score(items, scores), start=1):
+        for rank_, item in enumerate(
+            rank_by_score(scope.items, scores),
+            start=1,
+        ):
             s = scores[item.id]
             suffix = f" ({item.year})" if item.year is not None else ""
             tier = f"[{tiers[item.id]}] " if item.id in tiers else ""
@@ -202,6 +185,13 @@ def _parse_kind(value: str) -> ItemKind:
     raise typer.BadParameter(
         f"{value!r} is not a valid kind. Choose one of: {ITEM_KINDS}.",
     )
+
+
+def _scope_for(store: Store, target: str, *, want: bool) -> RankingScope:
+    """Build the :class:`RankingScope` for a CLI ``target``/``--want`` pair."""
+    if want:
+        return RankingScope.for_want(store, _parse_kind(target))
+    return RankingScope.for_list(store, target)
 
 
 @app.command(name="lists")
@@ -251,6 +241,56 @@ def diary(
 
 
 @app.command()
+def add(
+    ctx: typer.Context,
+    list_name: Annotated[
+        str,
+        typer.Argument(help="List name (favorites) to add the items to."),
+    ],
+    titles: Annotated[
+        list[str],
+        typer.Argument(help="One or more titles to add to the list."),
+    ],
+    max_iters: Annotated[
+        int,
+        typer.Option(
+            "--max-iters",
+            help="Stop after this many comparisons in one session.",
+        ),
+    ] = RANK_MAX_ITERS_DEFAULT,
+) -> None:
+    """
+    Add items to a favorites list, then place them via ranking.
+
+    Each title is appended to ``items/<kind>.toml`` (with an id
+    defaulting to the title); duplicates are skipped with a note.
+    After adding, runs a focused ranking session that keeps seeding on
+    the newly-added items until they're well-separated from the rest.
+    """
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        result = add_items(
+            store,
+            list_name,
+            titles,
+            session=run_rank_session,
+            max_iters=max_iters,
+        )
+        for outcome in result.outcomes:
+            verb = "Added to" if outcome.new else "Already in"
+            typer.echo(
+                f"{verb} items/{KIND_PLURAL[result.kind]}: "
+                f"{outcome.item.title}",
+            )
+        if result.skipped_ranking:
+            typer.echo(
+                f"Need at least {MIN_K} items to rank {list_name!r}, "
+                f"found {len(store.items(result.kind))}. "
+                "Skipping ranking session.",
+            )
+
+
+@app.command()
 def rank(
     ctx: typer.Context,
     target: Annotated[
@@ -278,150 +318,10 @@ def rank(
     with _friendly_errors():
         store = Store.find(ctx.obj)
         run_rank_loop(
-            store,
-            target,
-            want=want,
+            _scope_for(store, target, want=want),
             session=run_rank_session,
             max_iters=max_iters,
         )
-
-
-def run_rank_loop(
-    store: Store,
-    target: str,
-    *,
-    want: bool = False,
-    session: Session,
-    max_iters: int = RANK_MAX_ITERS_DEFAULT,
-    rng: random.Random | None = None,
-) -> int:
-    """
-    Drive a ranking session against ``store``.
-
-    The ``session`` callable is responsible for prompting the user
-    (via TUI, scripted test fixture, or anything else); it receives
-    the proposed cluster of items and returns either an ordering
-    (list of tie groups) or ``None`` to end the session early.
-
-    With ``want=True``, ``target`` is interpreted as an item kind and
-    the session ranks that kind's want queue; comparisons are routed
-    to ``comparisons/want/<kind>.jsonl``. Otherwise ``target`` is a
-    list name as declared in ``great.toml``.
-
-    Returns the number of comparisons appended to the store.
-    """
-    if want:
-        kind = _parse_kind(target)
-        items = store.wants(kind)
-        comparisons = list(store.want_comparisons(kind))
-        scope_label = f"want {kind!r}"
-        how_to_add = (
-            f"Add items via 'great want \"<title>\" --kind {kind}' "
-            f"or by editing want/{KIND_PLURAL[kind]}.toml directly."
-        )
-    else:
-        list_config = store.list_config(target)
-        items = store.items(list_config.kind)
-        comparisons = list(store.comparisons(target))
-        scope_label = repr(target)
-        items_file = f"items/{KIND_PLURAL[list_config.kind]}.toml"
-        how_to_add = f"Add items to {items_file}, e.g.:\n\n" + textwrap.indent(
-            EXAMPLE_ITEM_BLOCK.rstrip(), "  "
-        )
-
-    if len(items) < MIN_K:
-        raise InsufficientItemsError(
-            f"Need at least {MIN_K} items to rank {scope_label}, "
-            f"found {len(items)}.\n" + how_to_add,
-        )
-
-    rng = rng or random.Random()  # noqa: S311 (not security-sensitive)
-    by_id = {item.id: item for item in items}
-    appended = 0
-
-    for iteration in range(max_iters):
-        scores = infer(comparisons, items)
-        force_random = iteration > 0 and iteration % RANDOM_SEED_EVERY == 0
-        cluster_ids = select_cluster(
-            scores,
-            items,
-            max_k=MAX_K,
-            rng=rng,
-            force_random_seed=force_random,
-        )
-        if len(cluster_ids) < MIN_K:
-            break
-        cluster_ids.sort(key=lambda i: scores[i].mean, reverse=True)
-        cluster = [by_id[i] for i in cluster_ids]
-
-        result = session(cluster)
-        if result is None:
-            break
-
-        c = Comparison(
-            ts=datetime.now(UTC),
-            items=cluster_ids,
-            ordering=result,
-        )
-        if want:
-            store.append_want_comparison(kind, c)
-        else:
-            store.append_comparison(target, c)
-        comparisons.append(c)
-        appended += 1
-
-    return appended
-
-
-def _matches(item: Item, query: str, folded_query: str) -> bool:
-    """Lookup predicate: exact id, case-insensitive title, or external id."""
-    return (
-        item.id == query
-        or item.title.casefold() == folded_query
-        or query in item.external_ids.values()
-    )
-
-
-def resolve_item(
-    store: Store,
-    query: str,
-    kind: ItemKind | None = None,
-    *,
-    include_wants: bool = False,
-) -> Item:
-    """
-    Find an item by id, exact (case-insensitive) title, or external id.
-
-    By default only the consumed catalog is searched. With
-    ``include_wants=True`` the want queue is searched too — used by
-    ``great log`` so that consuming a wanted item promotes it.
-    """
-    kinds: set[ItemKind] = (
-        {kind} if kind else {lst.kind for lst in store.config.lists}
-    )
-    folded = query.casefold()
-    candidates: list[Item] = []
-    for k in kinds:
-        sources = [store.items(k)]
-        if include_wants:
-            sources.append(store.wants(k))
-        candidates.extend(
-            item
-            for source in sources
-            for item in source
-            if _matches(item, query, folded)
-        )
-    if not candidates:
-        raise ItemNotFoundError(f"no item matching {query!r}")
-    if len(candidates) > 1:
-        listed = ", ".join(
-            f"{i.title!r} (kind={i.kind}, id={i.id})" for i in candidates
-        )
-        raise AmbiguousItemError(
-            f"{query!r} matches {len(candidates)} items: {listed}. "
-            "Pass --kind or use an exact id.",
-        )
-    return candidates[0]
 
 
 def _resolve_ts(at: datetime | None) -> datetime:
@@ -429,6 +329,35 @@ def _resolve_ts(at: datetime | None) -> datetime:
     if at is None:
         return datetime.now(UTC)
     return at if at.tzinfo else at.replace(tzinfo=UTC)
+
+
+def _record_log_entry(
+    store: Store,
+    query: str,
+    *,
+    status: LogStatus,
+    notes: str | None,
+    at: datetime | None,
+    kind: ItemKind | None,
+) -> None:
+    """Resolve ``query``, promote-on-consume, and append the diary entry."""
+    resolved = resolve_item(store, query, kind=kind, search_wants=True)
+    promoted = (
+        status == "consumed"
+        and store.promote_want(resolved.kind, resolved.id) is not None
+    )
+    store.append_log(
+        LogEntry(
+            ts=_resolve_ts(at),
+            kind=resolved.kind,
+            item=resolved.id,
+            status=status,
+            notes=notes,
+        ),
+    )
+    typer.echo(f"Logged {status}: {resolved.title}")
+    if promoted:
+        typer.echo("  (promoted from want queue)")
 
 
 @app.command(name="log")
@@ -458,23 +387,14 @@ def log_(
     """Append a consumption-diary entry."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        resolved = resolve_item(store, item, kind=kind, include_wants=True)
-        promoted = (
-            status == "consumed"
-            and store.promote_want(resolved.kind, resolved.id) is not None
+        _record_log_entry(
+            store,
+            item,
+            status=status,
+            notes=notes,
+            at=at,
+            kind=kind,
         )
-        store.append_log(
-            LogEntry(
-                ts=_resolve_ts(at),
-                kind=resolved.kind,
-                item=resolved.id,
-                status=status,
-                notes=notes,
-            ),
-        )
-        typer.echo(f"Logged {status}: {resolved.title}")
-        if promoted:
-            typer.echo("  (promoted from want queue)")
 
 
 @app.command()
@@ -498,7 +418,16 @@ def consumed(
     ] = None,
 ) -> None:
     """Shortcut for ``great log <item> --status consumed``."""
-    log_(ctx, item, status="consumed", notes=notes, at=at, kind=kind)
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        _record_log_entry(
+            store,
+            item,
+            status="consumed",
+            notes=notes,
+            at=at,
+            kind=kind,
+        )
 
 
 @app.command()
@@ -550,31 +479,20 @@ def unwant(
     """Remove an item from its kind's want queue."""
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        kinds: set[ItemKind] = (
-            {kind} if kind else {lst.kind for lst in store.config.lists}
-        )
-        folded = item.casefold()
-        matches: list[tuple[ItemKind, Item]] = [
-            (k, w)
-            for k in kinds
-            for w in store.wants(k)
-            if _matches(w, item, folded)
-        ]
-        if not matches:
+        try:
+            resolved = resolve_item(
+                store,
+                item,
+                kind=kind,
+                search_catalog=False,
+                search_wants=True,
+            )
+        except ItemNotFoundError:
             typer.echo(f"Not on any want queue: {item}")
             return
-        if len(matches) > 1:
-            listed = ", ".join(
-                f"{w.title!r} (kind={k}, id={w.id})" for k, w in matches
-            )
-            raise AmbiguousItemError(
-                f"{item!r} matches {len(matches)} want entries: {listed}. "
-                "Pass --kind or use an exact id.",
-            )
-        [(matched_kind, matched)] = matches
-        store.remove_want(matched_kind, matched.id)
+        store.remove_want(resolved.kind, resolved.id)
         typer.echo(
-            f"Removed from want/{KIND_PLURAL[matched_kind]}: {matched.title}"
+            f"Removed from want/{KIND_PLURAL[resolved.kind]}: {resolved.title}"
         )
 
 

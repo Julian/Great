@@ -165,6 +165,24 @@ def test_add_want_rejects_already_consumed(store):
         store.add_want(Item(id="tt1", kind="movie", title="Anora"))
 
 
+def test_add_item_is_idempotent(store):
+    assert store.add_item(Item(id="tt1", kind="movie", title="Anora")) is True
+    assert store.add_item(Item(id="tt1", kind="movie", title="Anora")) is False
+    assert len(store.items("movie")) == 1
+
+
+def test_add_item_rejects_already_wanted(store):
+    store.add_want(Item(id="tt1", kind="movie", title="Anora"))
+    with pytest.raises(StoreError, match="already in want"):
+        store.add_item(Item(id="tt1", kind="movie", title="Anora"))
+
+
+def test_add_item_appends(store):
+    store.write_items("movie", [Item(id="tt1", kind="movie", title="Anora")])
+    store.add_item(Item(id="tt2", kind="movie", title="Conclave"))
+    assert [i.id for i in store.items("movie")] == ["tt1", "tt2"]
+
+
 def test_remove_want(store):
     store.add_want(Item(id="tt1", kind="movie", title="Anora"))
     assert store.remove_want("movie", "tt1") is True

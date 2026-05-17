@@ -28,6 +28,16 @@ from great.models import (
 CONFIG_FILE = "great.toml"
 
 
+def items_file(kind: ItemKind) -> str:
+    """Repo-relative path of the consumed-items TOML for ``kind``."""
+    return f"items/{KIND_PLURAL[kind]}.toml"
+
+
+def want_file(kind: ItemKind) -> str:
+    """Repo-relative path of the want-queue TOML for ``kind``."""
+    return f"want/{KIND_PLURAL[kind]}.toml"
+
+
 class StoreError(Exception):
     """A storage error."""
 
@@ -96,6 +106,26 @@ class Store:
         """Replace the consumed-items file for ``kind`` with ``items``."""
         self._write_items(self._items_path(kind), kind, items)
 
+    def add_item(self, item: Item) -> bool:
+        """
+        Append ``item`` to its kind's consumed catalog.
+
+        Returns ``True`` if newly added, ``False`` if already present.
+        Raises ``StoreError`` if the id is already on the want queue --
+        the catalog and want queue are kept disjoint.
+        """
+        if any(w.id == item.id for w in self.wants(item.kind)):
+            raise StoreError(
+                f"{item.id!r} is already in {want_file(item.kind)}; "
+                "won't add to the consumed catalog.",
+            )
+        items = self.items(item.kind)
+        if any(i.id == item.id for i in items):
+            return False
+        items.append(item)
+        self.write_items(item.kind, items)
+        return True
+
     def wants(self, kind: ItemKind) -> list[Item]:
         """Return want-queue items for ``kind`` (per kind, single queue)."""
         return self._read_items(self._wants_path(kind), kind)
@@ -113,9 +143,8 @@ class Store:
         catalog — the catalog and want queue are kept disjoint.
         """
         if any(i.id == item.id for i in self.items(item.kind)):
-            file_ = f"items/{KIND_PLURAL[item.kind]}.toml"
             raise StoreError(
-                f"{item.id!r} is already in {file_}; "
+                f"{item.id!r} is already in {items_file(item.kind)}; "
                 "won't add to the want queue.",
             )
         wants = self.wants(item.kind)
@@ -198,10 +227,10 @@ class Store:
         _append_jsonl(path, entry.model_dump_json(exclude_none=True))
 
     def _items_path(self, kind: ItemKind) -> Path:
-        return self.root / "items" / f"{KIND_PLURAL[kind]}.toml"
+        return self.root / items_file(kind)
 
     def _wants_path(self, kind: ItemKind) -> Path:
-        return self.root / "want" / f"{KIND_PLURAL[kind]}.toml"
+        return self.root / want_file(kind)
 
     def _comparisons_path(self, list_name: str) -> Path:
         return self.root / "comparisons" / f"{list_name}.jsonl"

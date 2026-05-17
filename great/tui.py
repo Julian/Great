@@ -8,7 +8,6 @@ item, ``t`` declares the whole cluster a tie, Enter submits, q/Esc
 cancels).
 """
 
-from collections.abc import Callable
 from typing import ClassVar
 
 from textual.app import App, ComposeResult
@@ -16,9 +15,9 @@ from textual.binding import Binding
 from textual.widgets import Footer, Header, Label, ListItem, ListView
 
 from great.models import Item
+from great.session import RankResult, Session
 
-RankResult = list[list[int]] | None
-Session = Callable[[list[Item]], RankResult]
+__all__ = ["RankApp", "RankResult", "Session", "run_rank_session"]
 
 
 class RankApp(App):

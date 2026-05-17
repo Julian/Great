@@ -68,6 +68,7 @@ def select_cluster(
     max_k: int = 5,
     rng: random.Random | None = None,
     force_random_seed: bool = False,
+    seed_pool: list[str] | None = None,
 ) -> list[str]:
     """
     Pick a cluster of items to compare next, size up to ``max_k``.
@@ -89,22 +90,38 @@ def select_cluster(
     fixed points without spuriously seeding on a well-separated item
     (which would always collapse to a singleton). The caller is
     expected to engage this every few rounds.
+
+    ``seed_pool`` restricts the seed to a subset of item ids (cluster
+    expansion still draws from the full ``items`` list). Used to focus
+    a ranking session on placing specific newly-added items: as soon
+    as every focus item is well-separated from the rest, the seed --
+    drawn from the focus set -- collapses to a singleton and the
+    caller can stop. Returns ``[]`` if the pool is empty or its ids
+    don't intersect ``items``.
     """
     if max_k < MIN_K:
         raise ValueError(f"max_k must be at least {MIN_K}")
     if not items:
         return []
 
+    if seed_pool is not None:
+        pool_ids = set(seed_pool)
+        seed_candidates = [i for i in items if i.id in pool_ids]
+        if not seed_candidates:
+            return []
+    else:
+        seed_candidates = items
+
     rng = rng or random.Random()  # noqa: S311 (not security-sensitive)
     if force_random_seed:
         top_uncertain = sorted(
-            items,
+            seed_candidates,
             key=lambda i: scores[i.id].variance,
             reverse=True,
         )[:max_k]
         seed = rng.choice(top_uncertain)
     else:
-        seed = max(items, key=lambda i: scores[i.id].variance)
+        seed = max(seed_candidates, key=lambda i: scores[i.id].variance)
     seed_score = scores[seed.id]
 
     scored_candidates = [

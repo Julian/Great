@@ -1,12 +1,8 @@
 from typer.testing import CliRunner
 import pytest
 
-from great._cli import (
-    AmbiguousItemError,
-    ItemNotFoundError,
-    app,
-    resolve_item,
-)
+from great._cli import app
+from great.lookup import AmbiguousItemError, ItemNotFoundError, resolve_item
 from great.models import GreatConfig, Item, ListConfig
 from great.store import Store
 
@@ -84,7 +80,7 @@ def test_resolve_ambiguous_with_kind_disambiguates(store):
 def test_resolve_can_include_wants(store):
     pick = Item(id="Watchlist Pick", kind="movie", title="Watchlist Pick")
     store.add_want(pick)
-    assert resolve_item(store, "Watchlist Pick", include_wants=True).id == (
+    assert resolve_item(store, "Watchlist Pick", search_wants=True).id == (
         "Watchlist Pick"
     )
     with pytest.raises(ItemNotFoundError):
@@ -371,8 +367,8 @@ def test_unwant_ambiguous_across_kinds_requires_kind(store):
         ["--root", str(store.root), "unwant", "Dual"],
     )
     assert result.exit_code == 1
-    assert "matches 2 want entries" in result.output.lower() or (
-        "matches 2 want entries" in (result.stderr or "")
+    assert "matches 2 items" in result.output.lower() or (
+        "matches 2 items" in (result.stderr or "")
     )
 
     result_ok = CliRunner().invoke(

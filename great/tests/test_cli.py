@@ -2,28 +2,11 @@ from typing import get_args
 import re
 
 from typer.testing import CliRunner
-import pytest
 
-from great._cli import (
-    DEFAULT_LISTS,
-    InsufficientItemsError,
-    app,
-    run_rank_loop,
-)
+from great._cli import DEFAULT_LISTS, app
 from great.models import GreatConfig, Item, ItemKind, ListConfig
+from great.session import RankingScope, run_rank_loop
 from great.store import Store
-
-
-def _setup_movies(tmp_path, items=None):
-    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
-    store = Store.init(tmp_path, config)
-    if items is None:
-        items = [
-            Item(id="tt1", kind="movie", title="Anora", year=2024),
-            Item(id="tt2", kind="movie", title="Casablanca", year=1942),
-        ]
-    store.write_items("movie", items)
-    return store
 
 
 def test_help_runs():
@@ -32,8 +15,8 @@ def test_help_runs():
     assert "rank personal media" in result.output.lower()
 
 
-def test_show_prints_items(tmp_path):
-    _setup_movies(tmp_path)
+def test_show_prints_items(tmp_path, make_movies_store):
+    make_movies_store(tmp_path)
     result = CliRunner().invoke(
         app,
         ["--root", str(tmp_path), "show", "movies"],
@@ -52,12 +35,11 @@ def test_show_unknown_list(tmp_path):
     assert result.exit_code != 0
 
 
-def test_show_reflects_comparison(tmp_path):
-    store = _setup_movies(tmp_path)
+def test_show_reflects_comparison(tmp_path, make_movies_store):
+    store = make_movies_store(tmp_path)
 
     appended = run_rank_loop(
-        store,
-        "movies",
+        RankingScope.for_list(store, "movies"),
         session=lambda _cluster: [[0], [1]],
         max_iters=1,
     )
@@ -73,118 +55,14 @@ def test_show_reflects_comparison(tmp_path):
     assert "Casablanca" in lines[1]
 
 
-def test_run_rank_loop_records_comparison(tmp_path):
-    store = _setup_movies(tmp_path)
-
-    appended = run_rank_loop(
-        store,
-        "movies",
-        session=lambda _cluster: [[0], [1]],
-        max_iters=1,
-    )
-
-    assert appended == 1
-    [c] = store.comparisons("movies")
-    assert c.ordering == [[0], [1]]
-
-
-def test_run_rank_loop_session_can_signal_quit(tmp_path):
-    store = _setup_movies(tmp_path)
-
-    appended = run_rank_loop(
-        store,
-        "movies",
-        session=lambda _cluster: None,
-        max_iters=10,
-    )
-
-    assert appended == 0
-    assert store.comparisons("movies") == []
-
-
-def test_run_rank_loop_records_tie(tmp_path):
-    store = _setup_movies(tmp_path)
-
-    run_rank_loop(
-        store,
-        "movies",
-        session=lambda cluster: [list(range(len(cluster)))],
-        max_iters=1,
-    )
-
-    [c] = store.comparisons("movies")
-    assert c.ordering == [[0, 1]]
-
-
-def test_run_rank_loop_orders_cluster_by_descending_mean(tmp_path):
-    items = [
-        Item(id="tt1", kind="movie", title="Anora", year=2024),
-        Item(id="tt2", kind="movie", title="Casablanca", year=1942),
-    ]
-    store = _setup_movies(tmp_path, items=items)
-
-    seen: list[list[str]] = []
-
-    def session(cluster):
-        seen.append([item.id for item in cluster])
-        if len(seen) == 1:
-            return [[1], [0]]
-        return None
-
-    run_rank_loop(store, "movies", session=session, max_iters=5)
-
-    assert len(seen) == 2
-    assert seen[1][0] == "tt2"
-
-
-def test_run_rank_loop_stops_when_ranking_is_settled(tmp_path):
-    items = [
-        Item(id=f"tt{i}", kind="movie", title=f"M{i}", year=2000 + i)
-        for i in range(6)
-    ]
-    store = _setup_movies(tmp_path, items=items)
-
-    appended = run_rank_loop(
-        store,
-        "movies",
-        session=lambda cluster: [[i] for i in range(len(cluster))],
-        max_iters=1000,
-    )
-
-    assert 0 < appended < 100
-
-
-def test_run_rank_loop_want_mode_writes_to_want_comparisons(tmp_path):
-    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
-    store = Store.init(tmp_path, config)
-    store.add_want(Item(id="w1", kind="movie", title="Wanted A"))
-    store.add_want(Item(id="w2", kind="movie", title="Wanted B"))
-
-    appended = run_rank_loop(
-        store,
-        "movie",
-        want=True,
-        session=lambda _cluster: [[0], [1]],
-        max_iters=1,
-    )
-
-    assert appended == 1
-    assert store.comparisons("movies") == []
-    [c] = store.want_comparisons("movie")
-    assert c.ordering == [[0], [1]]
-
-
-def test_run_rank_loop_want_mode_rejects_bad_kind(tmp_path):
+def test_rank_command_rejects_bad_kind(tmp_path):
     Store.init(tmp_path, GreatConfig())
-    store = Store.find(tmp_path)
-    with pytest.raises(Exception, match="not a valid kind"):
-        run_rank_loop(
-            store,
-            "potato",
-            want=True,
-            session=lambda _cluster: None,
-            max_iters=1,
-        )
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "rank", "potato", "--want"],
+    )
+    assert result.exit_code != 0
+    assert "not a valid kind" in result.output.lower()
 
 
 def test_show_want_prints_want_ranking(tmp_path):
@@ -201,24 +79,11 @@ def test_show_want_prints_want_ranking(tmp_path):
     assert "Wanted B" in result.output
 
 
-def test_run_rank_loop_refuses_too_few_items(tmp_path):
-    _setup_movies(
-        tmp_path,
-        items=[Item(id="tt1", kind="movie", title="Anora")],
-    )
-    store = Store.find(tmp_path)
-
-    with pytest.raises(InsufficientItemsError):
-        run_rank_loop(
-            store,
-            "movies",
-            session=lambda _cluster: None,
-            max_iters=1,
-        )
-
-
-def test_rank_command_too_few_items_exits_nonzero(tmp_path):
-    _setup_movies(
+def test_rank_command_too_few_items_exits_nonzero(
+    tmp_path,
+    make_movies_store,
+):
+    make_movies_store(
         tmp_path,
         items=[Item(id="tt1", kind="movie", title="Anora")],
     )
@@ -230,6 +95,46 @@ def test_rank_command_too_few_items_exits_nonzero(tmp_path):
     assert "at least" in result.output.lower()
     assert "items/movies.toml" in result.output
     assert "[[items]]" in result.output
+
+
+def test_add_command_appends_and_skips_ranking_when_too_few(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "add", "movies", "The Godfather"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Added to items/movies: The Godfather" in result.output
+    assert "Skipping ranking session" in result.output
+    [item] = Store.find(tmp_path).items("movie")
+    assert item.title == "The Godfather"
+
+
+def test_add_command_skips_existing_titles(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [Item(id="Anora", kind="movie", title="Anora")],
+    )
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "add", "movies", "Anora"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Already in items/movies: Anora" in result.output
+    assert len(Store.find(tmp_path).items("movie")) == 1
+
+
+def test_add_command_unknown_list_friendly_error(tmp_path):
+    Store.init(tmp_path, GreatConfig())
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "add", "movies", "Anora"],
+    )
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
 
 
 def test_init_creates_layout(tmp_path):
@@ -513,8 +418,7 @@ def test_show_includes_tier_after_comparisons(tmp_path):
         ],
     )
     run_rank_loop(
-        store,
-        "movies",
+        RankingScope.for_list(store, "movies"),
         session=lambda _cluster: [[0], [1]],
         max_iters=1,
     )

@@ -198,6 +198,47 @@ def test_select_cluster_force_random_seed_differs():
     assert random_seed != greedy or random_seed[0] != "a"
 
 
+def test_select_cluster_seed_pool_restricts_seed():
+    items = [_movie(c) for c in "abcdef"]
+    scores = {i.id: Score(0.0, 0.1) for i in items}
+    scores["a"] = Score(0.0, 100.0)
+    scores["d"] = Score(0.0, 5.0)
+    cluster = select_cluster(scores, items, max_k=3, seed_pool=["d"])
+    assert cluster[0] == "d"
+
+
+def test_select_cluster_seed_pool_expands_from_full_items():
+    items = [_movie(c) for c in "abcdef"]
+    scores = {i.id: Score(0.0, 0.1) for i in items}
+    scores["d"] = Score(0.0, 5.0)
+    cluster = select_cluster(scores, items, max_k=5, seed_pool=["d"])
+    assert cluster[0] == "d"
+    assert set(cluster[1:]) <= set("abcef")
+    assert len(cluster) > 1
+
+
+def test_select_cluster_seed_pool_singleton_when_focus_settled():
+    items = [_movie(c) for c in "abcdef"]
+    scores = {
+        i.id: Score(float(ord(i.id) - ord("a")) * 10.0, 0.01) for i in items
+    }
+    scores["d"] = Score(35.0, 0.01)
+    cluster = select_cluster(scores, items, max_k=5, seed_pool=["d"])
+    assert cluster == ["d"]
+
+
+def test_select_cluster_seed_pool_empty_returns_empty():
+    items = [_movie(c) for c in "abc"]
+    scores = {i.id: Score(0.0, 1.0) for i in items}
+    assert select_cluster(scores, items, max_k=3, seed_pool=[]) == []
+
+
+def test_select_cluster_seed_pool_disjoint_returns_empty():
+    items = [_movie(c) for c in "abc"]
+    scores = {i.id: Score(0.0, 1.0) for i in items}
+    assert select_cluster(scores, items, max_k=3, seed_pool=["z"]) == []
+
+
 def test_rescale_empty():
     assert rescale_to_quantiles({}) == {}
 
