@@ -83,6 +83,11 @@ class Store:
             tomli_w.dump(_dump(config), f)
         return cls(root)
 
+    def write_config(self) -> None:
+        """Persist ``self.config`` back to ``great.toml``."""
+        with (self.root / CONFIG_FILE).open("wb") as f:
+            tomli_w.dump(_dump(self.config), f)
+
     def list_config(self, name: str) -> ListConfig:
         """Return the configured list with the given name."""
         for lst in self.config.lists:

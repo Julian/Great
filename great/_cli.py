@@ -9,6 +9,12 @@ import contextlib
 
 import typer
 
+from great.albumsgenerator import (
+    SOURCE_KEY as ALBUMSGENERATOR_SOURCE_KEY,
+    AlbumsGeneratorError,
+    fetch_project,
+    import_project,
+)
 from great.lookup import (
     AmbiguousItemError,
     ItemNotFoundError,
@@ -81,6 +87,7 @@ PAGES_WORKFLOW = (
 
 
 _FRIENDLY = (
+    AlbumsGeneratorError,
     AmbiguousItemError,
     InsufficientItemsError,
     ItemNotFoundError,
@@ -105,6 +112,11 @@ app = typer.Typer(
     no_args_is_help=True,
     help="Track and rank personal media via pairwise/k-way comparison.",
 )
+import_app = typer.Typer(
+    no_args_is_help=True,
+    help="Import data from external sources into the consumed catalog.",
+)
+app.add_typer(import_app, name="import")
 
 
 def main() -> None:
@@ -581,3 +593,69 @@ def init(
     typer.echo(
         "Add items to items/, then `great rank <list>` to start ranking.",
     )
+
+
+@import_app.command("1001albums")
+def import_1001albums(
+    ctx: typer.Context,
+    username: Annotated[
+        str | None,
+        typer.Argument(
+            help=(
+                "1001albumsgenerator.com username. If omitted, reads from "
+                "[sources.albumsgenerator] in great.toml. The username is "
+                "persisted on first successful import."
+            ),
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be imported without writing.",
+        ),
+    ] = False,
+) -> None:
+    """
+    Import a 1001albums project as consumed albums + diary entries.
+
+    Each *revealed* album in the project history becomes an album item
+    (id = ``spotify:album:<id>`` when available) plus a ``consumed``
+    log entry timestamped at the album's reveal date. Re-running is
+    idempotent: existing items aren't duplicated, and log entries are
+    deduplicated by (kind, item, timestamp).
+    """
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        configured = store.config.sources.get(
+            ALBUMSGENERATOR_SOURCE_KEY,
+            {},
+        ).get("username")
+        resolved_username = username or configured
+        if not resolved_username:
+            typer.echo(
+                "No username given and none in great.toml. Pass it as an "
+                "argument, e.g. `great import 1001albums <username>`.",
+                err=True,
+            )
+            raise typer.Exit(1)
+        data = fetch_project(resolved_username)
+        result = import_project(store, data, dry_run=dry_run)
+        verb = "Would add" if dry_run else "Added"
+        typer.echo(
+            f"{verb} {len(result.items_added)} album(s), "
+            f"{len(result.log_added)} diary entry(ies). "
+            f"Existing: {result.items_existing} item(s), "
+            f"{result.log_existing} log(s). "
+            f"Skipped {result.skipped_unrevealed} unrevealed.",
+        )
+        if not dry_run and resolved_username != configured:
+            store.config.sources[ALBUMSGENERATOR_SOURCE_KEY] = {
+                **store.config.sources.get(ALBUMSGENERATOR_SOURCE_KEY, {}),
+                "username": resolved_username,
+            }
+            store.write_config()
+            typer.echo(
+                f"Saved username to great.toml "
+                f"[sources.{ALBUMSGENERATOR_SOURCE_KEY}].",
+            )
