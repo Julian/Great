@@ -1,31 +1,41 @@
 {% extends "base.html" %}
-{% block title %}{{ list.config.name }} — Great{% endblock %}
+{% block title %}{{ list.config.name }} &mdash; Great{% endblock %}
 {% block content %}
 <h2>{{ list.config.name }}</h2>
 {% if list.config.description %}<p>{{ list.config.description }}</p>{% endif %}
-<p><small>{{ list.ranked|length }} items · {{ list.comparison_count }} comparisons</small></p>
+<p class="meta">
+  {{ list.ranked|length }} item{{ '' if list.ranked|length == 1 else 's' }}
+  &mdash; {{ list.comparison_count }} comparison{{ '' if list.comparison_count == 1 else 's' }}
+</p>
 
-{% if not list.ranked %}<p>No items.</p>{% endif %}
 <table class="ranked">
   <thead>
     <tr>
-      <th class="num">#</th>
+      <th class="num">No.</th>
       {% if list.tiers %}<th class="tier">Tier</th>{% endif %}
       <th>Title</th>
-      <th class="num">Year</th>
-      <th class="num">Score</th>
-      <th class="num">±</th>
+      <th class="num col-year">Year</th>
+      <th class="num col-score">Score</th>
+      <th class="num col-stddev">&pm;</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
-    {% for item in list.ranked %}
-    <tr>
-      <td class="num">{{ loop.index }}</td>
-      {% if list.tiers %}<td class="tier tier-{{ list.tiers[item.id] }}">{{ list.tiers[item.id] }}</td>{% endif %}
-      <td><a href="../items/{{ item.kind }}/{{ item.id|slug }}.html">{{ item.title }}</a></td>
-      <td class="num">{{ item.year if item.year else "" }}</td>
-      <td class="num">{{ "%+.2f"|format(list.scores[item.id].mean) }}</td>
-      <td class="num">{{ "%.2f"|format(list.scores[item.id].variance ** 0.5) }}</td>
+    {% for row in list.rows %}
+    <tr{% if row.tier_break %} class="tier-break"{% endif %}>
+      <td class="rank">{{ row.rank }}</td>
+      {% if list.tiers %}
+      <td class="tier tier-{{ row.tier }}">{% if row.tier_break or loop.first %}{{ row.tier }}{% endif %}</td>
+      {% endif %}
+      <td class="title"><a href="../items/{{ row.item.kind }}/{{ row.item.id|slug }}.html">{{ row.item.title }}</a></td>
+      <td class="num col-year">{% if row.item.year %}{{ row.item.year }}{% else %}&mdash;{% endif %}</td>
+      <td class="num col-score">{{ "%+.2f"|format(row.score.mean) }}</td>
+      <td class="num col-stddev">{{ "%.2f"|format(row.score.variance ** 0.5) }}</td>
+      <td>
+        <div class="score-mark{% if row.tier %} tier-{{ row.tier }}{% endif %}">
+          <span class="tick" style="left: {{ '%.1f'|format(50 + row.bar_pct / 2) }}%"></span>
+        </div>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

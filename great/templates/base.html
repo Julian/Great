@@ -16,5 +16,11 @@
   </nav>
 </header>
 <main>{% block content %}{% endblock %}</main>
+<footer class="colophon">
+  <span class="ornament">❦</span>
+  <p>
+    Last revised <time datetime="{{ build_ts.date().isoformat() }}">{{ build_ts.strftime('%B %-d, %Y') }}</time>.
+  </p>
+</footer>
 </body>
 </html>

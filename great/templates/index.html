@@ -2,15 +2,16 @@
 {% block title %}Great{% endblock %}
 {% block content %}
 <h2>Lists</h2>
-{% if not lists %}<p>No lists configured.</p>{% endif %}
+{% if not lists %}<p class="meta">No populated lists yet.</p>{% endif %}
 <ul class="list-index">
   {% for data in lists %}
   <li>
     <a href="lists/{{ data.config.name }}.html">{{ data.config.name }}</a>
-    <small>
-      {{ data.ranked|length }} items · {{ data.comparison_count }} comparisons
-      {% if data.config.description %} · {{ data.config.description }}{% endif %}
-    </small>
+    <div class="meta">
+      {{ data.ranked|length }} item{{ '' if data.ranked|length == 1 else 's' }}
+      &mdash; {{ data.comparison_count }} comparison{{ '' if data.comparison_count == 1 else 's' }}
+      {% if data.config.description %}&mdash; {{ data.config.description }}{% endif %}
+    </div>
   </li>
   {% endfor %}
 </ul>
@@ -20,9 +21,10 @@
 <ul class="diary-recent">
   {% for entry in recent_log %}
   <li>
-    <time>{{ entry.ts.date() }}</time> —
-    <a href="{{ entry.href }}">{{ entry.title }}</a>
-    <small>({{ entry.status }})</small>
+    <time datetime="{{ entry.ts.date().isoformat() }}">{{ entry.ts.strftime('%b %-d') }}</time>
+    <span class="badge">{{ entry.kind }}</span>
+    <span class="title"><a href="{{ entry.href }}">{{ entry.title }}</a></span>
+    <span class="badge status-{{ entry.status }}">{{ entry.status }}</span>
   </li>
   {% endfor %}
 </ul>

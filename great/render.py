@@ -1,6 +1,8 @@
 """Static-site renderer for a Great data repo."""
 
+from datetime import datetime
 from importlib.resources import as_file, files
+from itertools import groupby
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -29,10 +31,11 @@ def build_site(store: Store, out: Path) -> None:
         keep_trailing_newline=True,
     )
     env.filters["slug"] = slug
+    build_ts = datetime.now().astimezone()
 
     _copy_assets(out)
 
-    list_data = _aggregate_lists(store)
+    list_data = [d for d in _aggregate_lists(store) if d["ranked"]]
     want_data = _aggregate_wants(store)
     items_by_key: dict[tuple[ItemKind, str], Item] = {
         (item.kind, item.id): item
@@ -42,19 +45,21 @@ def build_site(store: Store, out: Path) -> None:
         ]
     }
     log_entries = sorted(store.log(), key=lambda e: e.ts, reverse=True)
+    log_view = [_log_view(e, items_by_key) for e in log_entries]
 
-    _write(
+    write = _writer(build_ts)
+    write(
         out / "index.html",
         env.get_template("index.html"),
         up="",
         lists=list_data,
-        recent_log=[_log_view(e, items_by_key) for e in log_entries[:20]],
+        recent_log=log_view[:20],
     )
 
     lists_dir = out / "lists"
     lists_dir.mkdir(exist_ok=True)
     for data in list_data:
-        _write(
+        write(
             lists_dir / f"{data['config'].name}.html",
             env.get_template("list.html"),
             up="../",
@@ -78,7 +83,7 @@ def build_site(store: Store, out: Path) -> None:
         ]
         item_path = out / "items" / item.kind / f"{slug(item.id)}.html"
         item_path.parent.mkdir(parents=True, exist_ok=True)
-        _write(
+        write(
             item_path,
             env.get_template("item.html"),
             up="../../",
@@ -86,16 +91,17 @@ def build_site(store: Store, out: Path) -> None:
             in_lists=in_lists,
             log_entries=item_log.get((item.kind, item.id), []),
             metadata=item.metadata,
+            external_links=_external_links(item.external_ids),
         )
 
-    _write(
+    write(
         out / "diary.html",
         env.get_template("diary.html"),
         up="",
-        log_entries=[_log_view(e, items_by_key) for e in log_entries],
+        diary_months=_group_by_month(log_view),
     )
 
-    _write(
+    write(
         out / "queue.html",
         env.get_template("queue.html"),
         up="",
@@ -129,6 +135,17 @@ def _log_view(
     }
 
 
+def _group_by_month(log_view: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group descending log entries into month buckets, newest first."""
+    return [
+        {"label": label, "entries": list(entries)}
+        for label, entries in groupby(
+            log_view,
+            key=lambda e: e["ts"].strftime("%B %Y"),
+        )
+    ]
+
+
 def rank_by_score(
     items: list[Item],
     scores: dict[str, Score],
@@ -158,13 +175,15 @@ def _aggregate_lists(store: Store) -> list[dict[str, Any]]:
             if comparisons
             else {}
         )
+        ranked = rank_by_score(items, scores)
         out.append(
             {
                 "config": list_config,
-                "ranked": rank_by_score(items, scores),
+                "ranked": ranked,
                 "scores": scores,
                 "tiers": tiers,
                 "comparison_count": len(comparisons),
+                "rows": _ranked_rows(ranked, scores, tiers),
             },
         )
     return out
@@ -178,15 +197,87 @@ def _aggregate_wants(store: Store) -> list[dict[str, Any]]:
             continue
         comparisons = store.want_comparisons(kind)
         scores = infer(comparisons, wants)
+        ranked = rank_by_score(wants, scores)
         out.append(
             {
                 "kind": kind,
-                "ranked": rank_by_score(wants, scores),
+                "ranked": ranked,
                 "scores": scores,
                 "comparison_count": len(comparisons),
+                "rows": _ranked_rows(ranked, scores, tiers={}),
             },
         )
     return out
+
+
+def _ranked_rows(
+    ranked: list[Item],
+    scores: dict[str, Score],
+    tiers: dict[str, str],
+) -> list[dict[str, Any]]:
+    """
+    Per-row view data: rank, score, tier, score-bar geometry, tier-break flag.
+
+    The bar is bipolar, centered on 0 and scaled so the largest absolute
+    mean fills the row at 100%; ``bar_pct`` is signed (negative grows
+    leftward, positive grows rightward in the template).
+    """
+    scale = max((abs(s.mean) for s in scores.values()), default=0.0) or 1.0
+    rows: list[dict[str, Any]] = []
+    prev_tier: str | None = None
+    for i, item in enumerate(ranked, 1):
+        score = scores[item.id]
+        tier = tiers.get(item.id)
+        rows.append(
+            {
+                "rank": i,
+                "item": item,
+                "score": score,
+                "tier": tier,
+                "bar_pct": score.mean / scale * 100.0,
+                "tier_break": prev_tier is not None and tier != prev_tier,
+            },
+        )
+        prev_tier = tier
+    return rows
+
+
+def _external_links(
+    external_ids: dict[str, str],
+) -> list[dict[str, str | None]]:
+    """Render ``external_ids`` as a list of {source, value, url?} dicts."""
+    return [
+        {"source": source, "value": value, "url": _external_url(source, value)}
+        for source, value in external_ids.items()
+    ]
+
+
+EXTERNAL_ID_URL_TEMPLATES: dict[str, str] = {
+    "imdb": "https://www.imdb.com/title/{}/",
+    "tmdb_movie": "https://www.themoviedb.org/movie/{}",
+    "tmdb_tv": "https://www.themoviedb.org/tv/{}",
+    "isbn": "https://openlibrary.org/isbn/{}",
+    "openlibrary": "https://openlibrary.org/works/{}",
+    "goodreads": "https://www.goodreads.com/book/show/{}",
+    "igdb": "https://www.igdb.com/games/{}",
+    "discogs": "https://www.discogs.com/release/{}",
+    "wikipedia": "https://en.wikipedia.org/wiki/{}",
+    "musicbrainz_release": "https://musicbrainz.org/release/{}",
+    "musicbrainz_artist": "https://musicbrainz.org/artist/{}",
+    "musicbrainz_recording": "https://musicbrainz.org/recording/{}",
+}
+
+
+def _external_url(source: str, value: str) -> str | None:
+    """Canonical URL for a known external-id source, else None."""
+    if source == "spotify" and value.startswith("spotify:"):
+        try:
+            _, entity, ident = value.split(":", 2)
+        except ValueError:
+            return None
+        return f"https://open.spotify.com/{entity}/{ident}"
+    template = EXTERNAL_ID_URL_TEMPLATES.get(source)
+    return template.format(value) if template else None
 
 
 def _copy_assets(out: Path) -> None:
@@ -198,9 +289,14 @@ def _copy_assets(out: Path) -> None:
             (dst / entry.name).write_bytes(path.read_bytes())
 
 
-def _write(
-    path: Path,
-    template: jinja2.Template,
-    **context: object,
-) -> None:
-    path.write_text(template.render(**context))
+def _writer(build_ts: datetime) -> Any:
+    """Return a writer that injects ``build_ts`` into every render context."""
+
+    def write(
+        path: Path,
+        template: jinja2.Template,
+        **context: object,
+    ) -> None:
+        path.write_text(template.render(build_ts=build_ts, **context))
+
+    return write

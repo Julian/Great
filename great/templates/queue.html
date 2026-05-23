@@ -1,15 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Queue — Great{% endblock %}
+{% block title %}Queue &mdash; Great{% endblock %}
 {% block content %}
 <h2>Want to consume</h2>
-{% if not queues %}<p>Nothing in the queue.</p>{% endif %}
+{% if not queues %}<p class="meta">Nothing in the queue.</p>{% endif %}
 {% for queue in queues %}
 <h3>{{ queue.kind }}</h3>
+<p class="meta">
+  {{ queue.ranked|length }} item{{ '' if queue.ranked|length == 1 else 's' }}
+  &mdash; {{ queue.comparison_count }} comparison{{ '' if queue.comparison_count == 1 else 's' }}
+</p>
 <ol class="queue">
-  {% for item in queue.ranked %}
+  {% for row in queue.rows %}
   <li>
-    <a href="items/{{ item.kind }}/{{ item.id|slug }}.html">{{ item.title }}</a>
-    {% if item.year %}<small>({{ item.year }})</small>{% endif %}
+    <span class="title">
+      <a href="items/{{ row.item.kind }}/{{ row.item.id|slug }}.html">{{ row.item.title }}</a>
+      {% if row.item.year %}<small>({{ row.item.year }})</small>{% endif %}
+    </span>
+    {% if queue.comparison_count %}
+    <span class="score-mark">
+      <span class="tick" style="left: {{ '%.1f'|format(50 + row.bar_pct / 2) }}%"></span>
+    </span>
+    {% else %}
+    <span></span>
+    {% endif %}
   </li>
   {% endfor %}
 </ol>

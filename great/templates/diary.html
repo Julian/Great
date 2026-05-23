@@ -2,15 +2,19 @@
 {% block title %}Diary — Great{% endblock %}
 {% block content %}
 <h2>Diary</h2>
-{% if not log_entries %}<p>No entries yet.</p>{% endif %}
+{% if not diary_months %}<p class="meta">No entries yet.</p>{% endif %}
+{% for month in diary_months %}
+<div class="diary-month">{{ month.label }}</div>
 <ul class="diary">
-  {% for entry in log_entries %}
+  {% for entry in month.entries %}
   <li>
-    <time>{{ entry.ts.date() }}</time> —
-    <a href="{{ entry.href }}">{{ entry.title }}</a>
-    <small>({{ entry.status }})</small>
-    {% if entry.notes %}<br><em>{{ entry.notes }}</em>{% endif %}
+    <time datetime="{{ entry.ts.date().isoformat() }}">{{ entry.ts.strftime('%b %-d') }}</time>
+    <span class="badge">{{ entry.kind }}</span>
+    <span class="title"><a href="{{ entry.href }}">{{ entry.title }}</a></span>
+    <span class="badge status-{{ entry.status }}">{{ entry.status }}</span>
+    {% if entry.notes %}<span class="notes">{{ entry.notes }}</span>{% endif %}
   </li>
   {% endfor %}
 </ul>
+{% endfor %}
 {% endblock %}

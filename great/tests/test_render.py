@@ -143,7 +143,9 @@ def test_empty_store_renders_without_error(tmp_path):
     out = tmp_path / "dist"
     build_site(store, out)
     assert (out / "index.html").is_file()
-    assert (out / "lists" / "movies.html").is_file()
+    # Empty lists are hidden entirely — no list page, no index link.
+    assert not (out / "lists" / "movies.html").exists()
+    assert "movies" not in (out / "index.html").read_text()
 
 
 def test_list_page_shows_tier_when_comparisons_exist(populated, tmp_path):
