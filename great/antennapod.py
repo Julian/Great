@@ -144,7 +144,6 @@ def _read_episodes(
         out.append(
             {
                 "feed_url": feed["feed_url"],
-                "parent_title": feed["title"],
                 "item_identifier": item_identifier,
                 "title": r["title"] or item_identifier,
                 "pub_date_ms": r["pub_date_ms"] or None,
@@ -196,10 +195,12 @@ def provider_items(sources_dir: Path) -> Iterator[Item]:
     data = load_export(sources_dir)
     if data is None:
         return
-    for feed in data.get("feeds", []):
+    feeds = data.get("feeds", [])
+    feeds_by_url = {f["feed_url"]: f for f in feeds}
+    for feed in feeds:
         yield _build_podcast(feed)
     for episode in data.get("episodes", []):
-        yield _build_episode(episode)
+        yield _build_episode(episode, feeds_by_url)
 
 
 def provider_log_entries(sources_dir: Path) -> Iterator[LogEntry]:
@@ -240,16 +241,22 @@ def _build_podcast(feed: dict[str, Any]) -> Item:
     )
 
 
-def _build_episode(episode: dict[str, Any]) -> Item:
+def _build_episode(
+    episode: dict[str, Any],
+    feeds_by_url: dict[str, dict[str, Any]],
+) -> Item:
     feed_url = episode["feed_url"]
     guid = episode["item_identifier"]
     external_ids = {"feed_url": feed_url, "guid": guid}
     # The episode's publication year rarely helps when ranking, so we
     # leave Item.year unset and surface the parent show's title through
-    # metadata instead so display paths can render it.
+    # metadata instead so display paths can render it. The lookup
+    # happens here (not in :func:`read_export`) so old caches still
+    # resolve the parent title without re-importing.
+    parent_feed = feeds_by_url.get(feed_url)
     metadata: dict[str, Any] = {}
-    if episode.get("parent_title"):
-        metadata["parent_title"] = episode["parent_title"]
+    if parent_feed and parent_feed.get("title"):
+        metadata["parent_title"] = parent_feed["title"]
     if episode.get("duration_ms"):
         metadata["duration_ms"] = episode["duration_ms"]
     if episode.get("image_url"):
