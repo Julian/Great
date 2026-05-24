@@ -14,6 +14,7 @@ from great.albumsgenerator import (
     AlbumsGeneratorError,
     fetch_project,
     import_project,
+    summarize,
 )
 from great.lookup import (
     AmbiguousItemError,
@@ -641,14 +642,7 @@ def import_1001albums(
             raise typer.Exit(1)
         data = fetch_project(resolved_username)
         result = import_project(store, data, dry_run=dry_run)
-        verb = "Would add" if dry_run else "Added"
-        typer.echo(
-            f"{verb} {len(result.items_added)} album(s), "
-            f"{len(result.log_added)} diary entry(ies). "
-            f"Existing: {result.items_existing} item(s), "
-            f"{result.log_existing} log(s). "
-            f"Skipped {result.skipped_unrevealed} unrevealed.",
-        )
+        typer.echo(summarize(result, dry_run=dry_run))
         if not dry_run and resolved_username != configured:
             store.config.sources[ALBUMSGENERATOR_SOURCE_KEY] = {
                 **store.config.sources.get(ALBUMSGENERATOR_SOURCE_KEY, {}),

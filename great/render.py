@@ -131,6 +131,7 @@ def _log_view(
         "kind": entry.kind,
         "item_id": entry.item,
         "title": item.title if item else entry.item,
+        "creators": item.creators if item else [],
         "href": f"items/{entry.kind}/{slug(entry.item)}.html",
     }
 
@@ -245,9 +246,14 @@ def _ranked_rows(
 def _external_links(
     external_ids: dict[str, str],
 ) -> list[dict[str, str | None]]:
-    """Render ``external_ids`` as a list of {source, value, url?} dicts."""
+    """Render external_ids as a list of {source, label, value, url?} dicts."""
     return [
-        {"source": source, "value": value, "url": _external_url(source, value)}
+        {
+            "source": source,
+            "label": EXTERNAL_ID_LABELS.get(source, source),
+            "value": value,
+            "url": _external_url(source, value),
+        }
         for source, value in external_ids.items()
     ]
 
@@ -265,6 +271,34 @@ EXTERNAL_ID_URL_TEMPLATES: dict[str, str] = {
     "musicbrainz_release": "https://musicbrainz.org/release/{}",
     "musicbrainz_artist": "https://musicbrainz.org/artist/{}",
     "musicbrainz_recording": "https://musicbrainz.org/recording/{}",
+    "apple_music": "https://music.apple.com/album/{}",
+    "tidal": "https://tidal.com/browse/album/{}",
+    "deezer": "https://www.deezer.com/album/{}",
+    "youtube_music": "https://music.youtube.com/playlist?list={}",
+}
+
+EXTERNAL_ID_LABELS: dict[str, str] = {
+    "imdb": "IMDb",
+    "tmdb_movie": "TMDB",
+    "tmdb_tv": "TMDB",
+    "tmdb": "TMDB",
+    "isbn": "ISBN",
+    "openlibrary": "Open Library",
+    "goodreads": "Goodreads",
+    "igdb": "IGDB",
+    "discogs": "Discogs",
+    "wikipedia": "Wikipedia",
+    "musicbrainz_release": "MusicBrainz",
+    "musicbrainz_artist": "MusicBrainz",
+    "musicbrainz_recording": "MusicBrainz",
+    "spotify": "Spotify",
+    "apple_music": "Apple Music",
+    "tidal": "Tidal",
+    "deezer": "Deezer",
+    "youtube_music": "YouTube Music",
+    "qobuz": "Qobuz",
+    "1001albums": "1001 Albums",
+    "bandcamp": "Bandcamp",
 }
 
 

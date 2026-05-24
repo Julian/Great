@@ -2,6 +2,7 @@
 {% block title %}{{ item.title }} &mdash; Great{% endblock %}
 {% block content %}
 <h2 class="item-title">{{ item.title }}{% if item.year %} <span class="year">({{ item.year }})</span>{% endif %}</h2>
+{% if item.creators %}<p class="byline-line">{{ item.creators|join(", ") }}</p>{% endif %}
 <p class="meta">
   <span class="badge">{{ item.kind }}</span>
   <code>{{ item.id }}</code>
@@ -40,7 +41,7 @@
 <h3>External</h3>
 <dl class="external-ids">
   {% for link in external_links %}
-  <dt>{{ link.source }}</dt>
+  <dt>{{ link.label }}</dt>
   <dd>
     {% if link.url %}<a href="{{ link.url }}" rel="noopener">{{ link.value }}</a>
     {% else %}{{ link.value }}{% endif %}

@@ -8,6 +8,7 @@ and log entries are append-only JSONL. The want queue uses the same
 ``Item`` schema as the consumed catalog and is kept disjoint from it.
 """
 
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 import tomllib
@@ -24,6 +25,19 @@ from great.models import (
     ListConfig,
     LogEntry,
 )
+
+MUSIC_KINDS: frozenset[ItemKind] = frozenset({"album", "song"})
+
+
+@dataclass
+class SyncResult:
+    """New items created by :meth:`Store._sync_referenced_items`."""
+
+    artists_added: list[Item] = field(default_factory=list)
+
+    def __bool__(self) -> bool:
+        return bool(self.artists_added)
+
 
 CONFIG_FILE = "great.toml"
 
@@ -88,6 +102,59 @@ class Store:
         with (self.root / CONFIG_FILE).open("wb") as f:
             tomli_w.dump(_dump(self.config), f)
 
+    def _sync_referenced_items(self) -> SyncResult:
+        """
+        Ensure artist items exist for every music ``creators`` reference.
+
+        Invoked automatically by :meth:`write_items` whenever an album
+        or song file is written; callers don't need to trigger it.
+        Scans items of kinds in :data:`MUSIC_KINDS` for their
+        ``creators`` lists and creates a bare artist item (id = title
+        = name) for each unique name that doesn't already match an
+        existing artist's id or title. Never modifies or deletes
+        existing items. Idempotent.
+
+        Matching against existing *title* (not just id) avoids creating
+        a duplicate ``"TLC"`` artist item when one already exists with
+        a richer id like ``"musicbrainz:artist:..."``.
+
+        Non-music kinds may also carry ``creators`` (e.g. a movie's
+        director); those are deliberately *not* synced into the artist
+        list — directors and authors aren't artists.
+        """
+        artists = self._music_creators()
+        result = SyncResult(
+            artists_added=self._missing_items("artist", artists),
+        )
+        if result.artists_added:
+            self._write_items(
+                self._items_path("artist"),
+                "artist",
+                [*self.items("artist"), *result.artists_added],
+            )
+        return result
+
+    def _music_creators(self) -> set[str]:
+        names: set[str] = set()
+        for kind in MUSIC_KINDS:
+            for item in self.items(kind):
+                for name in item.creators:
+                    if name and name.strip():
+                        names.add(name.strip())
+        return names
+
+    def _missing_items(
+        self,
+        kind: ItemKind,
+        names: set[str],
+    ) -> list[Item]:
+        existing = self.items(kind)
+        known = {i.id for i in existing} | {i.title for i in existing}
+        return [
+            Item(id=name, kind=kind, title=name)
+            for name in sorted(names - known)
+        ]
+
     def list_config(self, name: str) -> ListConfig:
         """Return the configured list with the given name."""
         for lst in self.config.lists:
@@ -108,8 +175,16 @@ class Store:
         ]
 
     def write_items(self, kind: ItemKind, items: list[Item]) -> None:
-        """Replace the consumed-items file for ``kind`` with ``items``."""
+        """
+        Replace the consumed-items file for ``kind`` with ``items``.
+
+        Writes to a music kind (``album``/``song``) also trigger an
+        artist-catalog sync so any newly-referenced ``creators`` show
+        up as their own artist items.
+        """
         self._write_items(self._items_path(kind), kind, items)
+        if kind in MUSIC_KINDS:
+            self._sync_referenced_items()
 
     def add_item(self, item: Item) -> bool:
         """

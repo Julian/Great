@@ -273,3 +273,130 @@ def test_all_items_allows_cross_kind_id_collision(store):
     )
     kinds = {item.kind for item in store.all_items() if item.id == "Dune"}
     assert kinds == {"movie", "tv"}
+
+
+@pytest.fixture
+def music_store(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="songs", kind="song"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    return Store.init(tmp_path, config)
+
+
+def test_writing_album_auto_creates_artist_from_creators(music_store):
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="spotify:album:1",
+                kind="album",
+                title="Crazysexycool",
+                creators=["TLC"],
+            ),
+        ],
+    )
+    assert {i.id for i in music_store.items("artist")} == {"TLC"}
+
+
+def test_writing_song_auto_creates_artists_from_creators(music_store):
+    music_store.write_items(
+        "song",
+        [
+            Item(
+                id="spotify:track:1",
+                kind="song",
+                title="Waterfalls",
+                creators=["TLC", "Left Eye"],
+            ),
+        ],
+    )
+    titles = {i.title for i in music_store.items("artist")}
+    assert titles == {"TLC", "Left Eye"}
+
+
+def test_sync_matches_existing_artist_by_title_not_just_id(music_store):
+    # A richer artist already exists under a MusicBrainz id; an album
+    # references the same name — sync must NOT duplicate.
+    music_store.write_items(
+        "artist",
+        [
+            Item(
+                id="musicbrainz:artist:abc",
+                kind="artist",
+                title="TLC",
+            ),
+        ],
+    )
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Crazysexycool",
+                creators=["TLC"],
+            ),
+        ],
+    )
+    assert len(music_store.items("artist")) == 1
+    assert music_store.items("artist")[0].id == "musicbrainz:artist:abc"
+
+
+def test_sync_skips_non_music_creators(music_store):
+    # A movie may list its director under `creators`, but directors
+    # are not artists — sync must ignore them.
+    music_store.write_items(
+        "movie",
+        [
+            Item(
+                id="tt1",
+                kind="movie",
+                title="Inception",
+                creators=["Christopher Nolan"],
+            ),
+        ],
+    )
+    assert music_store.items("artist") == []
+
+
+def test_sync_is_idempotent(music_store):
+    item = Item(
+        id="a1",
+        kind="album",
+        title="Crazysexycool",
+        creators=["TLC"],
+    )
+    music_store.write_items("album", [item])
+    music_store.write_items("album", [item])  # second write is a no-op
+    assert len(music_store.items("artist")) == 1
+
+
+def test_sync_dedupes_repeated_artist_references(music_store):
+    music_store.write_items(
+        "album",
+        [
+            Item(id="a1", kind="album", title="X", creators=["TLC"]),
+            Item(id="a2", kind="album", title="Y", creators=["TLC"]),
+        ],
+    )
+    assert len(music_store.items("artist")) == 1
+
+
+def test_sync_strips_whitespace(music_store):
+    music_store.write_items(
+        "album",
+        [Item(id="a1", kind="album", title="X", creators=["  TLC  "])],
+    )
+    assert {i.title for i in music_store.items("artist")} == {"TLC"}
+
+
+def test_writing_non_music_kind_does_not_touch_artists(music_store):
+    music_store.write_items(
+        "movie",
+        [Item(id="tt1", kind="movie", title="Inception")],
+    )
+    assert music_store.items("artist") == []

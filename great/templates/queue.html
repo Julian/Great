@@ -14,6 +14,7 @@
   <li>
     <span class="title">
       <a href="items/{{ row.item.kind }}/{{ row.item.id|slug }}.html">{{ row.item.title }}</a>
+      {% if row.item.creators %}<span class="byline">{{ row.item.creators|join(", ") }}</span>{% endif %}
       {% if row.item.year %}<small>({{ row.item.year }})</small>{% endif %}
     </span>
     {% if queue.comparison_count %}

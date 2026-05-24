@@ -52,6 +52,7 @@ class Item(BaseModel):
     kind: ItemKind
     title: str
     year: int | None = None
+    creators: list[str] = Field(default_factory=list)
     external_ids: dict[str, str] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

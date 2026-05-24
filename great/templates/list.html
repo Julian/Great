@@ -27,7 +27,9 @@
       {% if list.tiers %}
       <td class="tier tier-{{ row.tier }}">{% if row.tier_break or loop.first %}{{ row.tier }}{% endif %}</td>
       {% endif %}
-      <td class="title"><a href="../items/{{ row.item.kind }}/{{ row.item.id|slug }}.html">{{ row.item.title }}</a></td>
+      <td class="title">
+        <a href="../items/{{ row.item.kind }}/{{ row.item.id|slug }}.html">{{ row.item.title }}</a>{% if row.item.creators %}<span class="byline">{{ row.item.creators|join(", ") }}</span>{% endif %}
+      </td>
       <td class="num col-year">{% if row.item.year %}{{ row.item.year }}{% else %}&mdash;{% endif %}</td>
       <td class="num col-score">{{ "%+.2f"|format(row.score.mean) }}</td>
       <td class="num col-stddev">{{ "%.2f"|format(row.score.variance ** 0.5) }}</td>

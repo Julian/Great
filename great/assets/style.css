@@ -205,6 +205,28 @@ table.ranked td.title a:hover {
   color: var(--accent);
 }
 
+/* Artist / byline — sans, small, in the soft ink. ---------------- */
+
+.byline {
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  margin-left: 0.45rem;
+}
+table.ranked td.title .byline { display: block; margin-left: 0; margin-top: 0.1rem; }
+
+.byline-line {
+  font-family: var(--display);
+  font-style: normal;
+  font-size: 1.2rem;
+  color: var(--ink-soft);
+  margin: 0 0 0.6rem;
+  letter-spacing: 0;
+}
+
 table.ranked td.tier {
   font-family: var(--display);
   font-style: italic;
