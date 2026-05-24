@@ -275,6 +275,26 @@ def test_all_items_allows_cross_kind_id_collision(store):
     assert kinds == {"movie", "tv"}
 
 
+def test_all_items_surfaces_kinds_not_in_config(store):
+    # The fixture only configures movies and tv, but items can exist on
+    # disk for kinds added later (e.g. AntennaPod-imported podcast
+    # episodes in a repo whose great.toml predates the kind). They must
+    # still surface in all_items so log titles resolve.
+    store.write_items(
+        "podcast_episode",
+        [
+            Item(
+                id="https://example.com/feed.rss#guid-1",
+                kind="podcast_episode",
+                title="Episode 1",
+                parent_id="https://example.com/feed.rss",
+            ),
+        ],
+    )
+    titles = {item.title for item in store.all_items()}
+    assert "Episode 1" in titles
+
+
 @pytest.fixture
 def music_store(tmp_path):
     config = GreatConfig(

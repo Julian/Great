@@ -261,10 +261,12 @@ def diary(
         if not entries:
             typer.echo("No diary entries.")
             return
-        kinds = {lst.kind for lst in store.config.lists}
+        # Walk every known kind for title resolution so provider items
+        # (e.g. AntennaPod episodes) still get human-readable titles even
+        # when the user has not declared a matching list in great.toml.
         titles = {
             (i.kind, i.id): i.title
-            for k in kinds
+            for k in get_args(ItemKind)
             for i in [*store.items(k), *store.wants(k)]
         }
         for e in entries:

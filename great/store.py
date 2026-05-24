@@ -163,11 +163,18 @@ class Store:
         return self._read_items(self.root / derived_file(kind), kind)
 
     def all_items(self) -> list[Item]:
-        """Return compiled items across kinds configured in ``great.toml``."""
+        """
+        Return compiled items across every known :data:`ItemKind`.
+
+        Walks all kinds rather than only those declared in
+        ``great.toml`` so that provider-imported items (e.g. an
+        AntennaPod ``podcast_episode``) still resolve in title lookups
+        and diary views when the user has not yet added a matching
+        list. Callers that want to gate behavior on configured lists
+        should filter by :attr:`GreatConfig.lists` themselves.
+        """
         return [
-            item
-            for kind in sorted({lst.kind for lst in self.config.lists})
-            for item in self.items(kind)
+            item for kind in get_args(ItemKind) for item in self.items(kind)
         ]
 
     # -- Source writes (user-only catalog edits) ------------------------

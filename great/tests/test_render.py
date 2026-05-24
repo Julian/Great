@@ -536,6 +536,42 @@ def test_sample_data_builds(tmp_path):
     assert "Severance" in diary
 
 
+def test_diary_resolves_titles_for_unconfigured_kinds(tmp_path):
+    # Repo with movies configured but NOT podcast_episode — items exist
+    # on disk (as a provider importer would write them) and a log entry
+    # references one. The diary must show the title, not the raw id,
+    # but no per-item podcast_episode page should be emitted.
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    episode_id = "https://example.com/feed.rss#guid-ep-1"
+    store.write_items(
+        "podcast_episode",
+        [
+            Item(
+                id=episode_id,
+                kind="podcast_episode",
+                title="The Real Episode Title",
+                parent_id="https://example.com/feed.rss",
+            ),
+        ],
+    )
+    store.append_log(
+        LogEntry(
+            ts=datetime(2026, 5, 9, tzinfo=UTC),
+            kind="podcast_episode",
+            item=episode_id,
+            status="consumed",
+        ),
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    diary = (out / "diary.html").read_text()
+    assert "The Real Episode Title" in diary
+    assert episode_id not in diary
+    # No page should be generated for the unconfigured episode kind.
+    assert not (out / "items" / "podcast_episode").exists()
+
+
 def test_list_page_omits_tier_without_comparisons(tmp_path):
     config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
     store = Store.init(tmp_path, config)

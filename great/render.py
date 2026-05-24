@@ -77,7 +77,14 @@ def build_site(store: Store, out: Path) -> None:
     item_log: dict[tuple[ItemKind, str], list[LogEntry]] = {}
     for entry in log_entries:
         item_log.setdefault((entry.kind, entry.item), []).append(entry)
+    # Per-item pages are gated by configured lists, so importing a kind
+    # the user hasn't added to ``great.toml`` (e.g. AntennaPod episodes
+    # in a legacy repo) won't suddenly emit thousands of orphan pages.
+    # Title resolution above still uses every kind on disk.
+    configured_kinds = {lst.kind for lst in store.config.lists}
     for item in items_by_key.values():
+        if item.kind not in configured_kinds:
+            continue
         in_lists = [
             {
                 "config": data["config"],
