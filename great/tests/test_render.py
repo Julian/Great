@@ -182,15 +182,22 @@ def test_cross_kind_same_id_produces_separate_item_pages(tmp_path):
 
 
 def test_sample_data_builds(tmp_path):
-    store = Store(SAMPLE_DATA)
-    build_site(store, tmp_path)
-    assert (tmp_path / "index.html").is_file()
-    assert (tmp_path / "diary.html").is_file()
-    assert (tmp_path / "queue.html").is_file()
-    assert (tmp_path / "lists" / "favorites.html").is_file()
-    assert (tmp_path / "items" / "movie" / "tt0068646.html").is_file()
-    assert (tmp_path / "items" / "tv" / "tt11280740.html").is_file()
-    diary = (tmp_path / "diary.html").read_text()
+    # Copy the fixture: build_site triggers Store.items() which compiles
+    # derived/<kind>.toml, and we don't want that to dirty the repo.
+    import shutil  # noqa: PLC0415
+
+    repo = tmp_path / "repo"
+    shutil.copytree(SAMPLE_DATA, repo)
+    store = Store(repo)
+    out = tmp_path / "dist"
+    build_site(store, out)
+    assert (out / "index.html").is_file()
+    assert (out / "diary.html").is_file()
+    assert (out / "queue.html").is_file()
+    assert (out / "lists" / "favorites.html").is_file()
+    assert (out / "items" / "movie" / "tt0068646.html").is_file()
+    assert (out / "items" / "tv" / "tt11280740.html").is_file()
+    diary = (out / "diary.html").read_text()
     assert "Anora" in diary
     assert "Severance" in diary
 

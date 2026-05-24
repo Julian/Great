@@ -1,26 +1,30 @@
 """
-Import a public 1001albumsgenerator.com project into a Great store.
+Import a public 1001albumsgenerator.com project as a provider source.
 
 The site exposes each user's project at
-``https://1001albumsgenerator.com/api/v1/projects/<username>``. Each
-*revealed* history entry becomes an album item plus a ``consumed``
-diary entry; unrevealed (upcoming) entries are skipped. Re-running the
-importer is idempotent — existing items aren't duplicated, and log
-entries are deduplicated by ``(kind, item, ts)``.
+``https://1001albumsgenerator.com/api/v1/projects/<username>``.
+:func:`fetch_project` retrieves it; :func:`save_project` writes the
+raw JSON to ``sources/albumsgenerator.json`` in the data repo, where
+the catalog compiler picks it up. :func:`provider_items` and
+:func:`provider_log_entries` synthesize :class:`Item` and
+:class:`LogEntry` records from the cache at compile/read time, so
+re-importing is just a cache refresh.
 """
 
-from dataclasses import dataclass, field
+from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
+import json
 
 import httpx
 
 from great.models import Item, LogEntry
-from great.store import Store
 
 API_URL = "https://1001albumsgenerator.com/api/v1/projects/{username}"
 SOURCE_KEY = "albumsgenerator"
+CACHE_FILENAME = "albumsgenerator.json"
 
 
 class AlbumsGeneratorError(Exception):
@@ -31,19 +35,6 @@ class ProjectNotFoundError(AlbumsGeneratorError):
     """No public project for the given username."""
 
 
-@dataclass
-class ImportResult:
-    """Outcome of one :func:`import_project` call."""
-
-    items_added: list[Item] = field(default_factory=list)
-    items_promoted: list[Item] = field(default_factory=list)
-    items_refreshed: list[Item] = field(default_factory=list)
-    items_existing: int = 0
-    log_added: list[LogEntry] = field(default_factory=list)
-    log_existing: int = 0
-    skipped_unrevealed: int = 0
-
-
 def fetch_project(
     username: str,
     *,
@@ -52,10 +43,10 @@ def fetch_project(
     """
     Fetch a public 1001albums project by username.
 
-    Wraps :exc:`httpx.HTTPError` (connection/timeout/etc.) and JSON
-    decode errors in :exc:`AlbumsGeneratorError` so the CLI surfaces a
-    clean message rather than a traceback. A 404 specifically is
-    surfaced as :exc:`ProjectNotFoundError`.
+    Wraps :exc:`httpx.HTTPError` and JSON decode errors in
+    :exc:`AlbumsGeneratorError` so the CLI surfaces a clean message
+    rather than a traceback. A 404 specifically is surfaced as
+    :exc:`ProjectNotFoundError`.
     """
     url = API_URL.format(username=username)
     try:
@@ -84,142 +75,56 @@ def fetch_project(
         ) from e
 
 
-def import_project(
-    store: Store,
-    data: dict[str, Any],
-    *,
-    dry_run: bool = False,
-) -> ImportResult:
-    """
-    Merge a fetched 1001albums project into ``store``.
+def save_project(sources_dir: Path, data: dict[str, Any]) -> None:
+    """Write the raw project JSON to ``sources/albumsgenerator.json``."""
+    sources_dir.mkdir(parents=True, exist_ok=True)
+    (sources_dir / CACHE_FILENAME).write_text(
+        json.dumps(data, indent=2, sort_keys=True),
+    )
 
-    Each revealed album is placed in the consumed catalog. If its id is
-    already on the want queue, the want is dropped in favor of the
-    imported item (mirroring ``great log --status consumed``). If the
-    id is already in the catalog, source-controlled fields (title,
-    year, importer-managed external_ids/metadata keys) are refreshed
-    against the latest data; user-added external_ids and metadata keys
-    are preserved.
 
-    Changes are batched: items.toml and want.toml are each written at
-    most once per import, and the log is appended only with new
-    entries. Re-running with no upstream changes is a no-op.
-    """
-    result = ImportResult()
-    existing_log_keys = {(e.kind, e.item, e.ts) for e in store.log()}
-    existing_items = {i.id: i for i in store.items("album")}
-    existing_wants = {w.id: w for w in store.wants("album")}
+def load_project(sources_dir: Path) -> dict[str, Any] | None:
+    """Return the cached project JSON, or ``None`` if not yet fetched."""
+    path = sources_dir / CACHE_FILENAME
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text())
 
-    merged_items: dict[str, Item] = dict(existing_items)
-    wants_to_drop: set[str] = set()
-    logs_to_append: list[LogEntry] = []
-    seen_this_pass: set[str] = set()
 
+def revealed_counts(data: dict[str, Any]) -> tuple[int, int]:
+    """Return ``(revealed, unrevealed)`` history-entry counts."""
+    history = data.get("history", [])
+    revealed = sum(1 for e in history if e.get("revealedAlbum"))
+    return revealed, len(history) - revealed
+
+
+def provider_items(sources_dir: Path) -> Iterator[Item]:
+    """Yield album items synthesized from the cached project."""
+    data = load_project(sources_dir)
+    if data is None:
+        return
     for entry in data.get("history", []):
         if not entry.get("revealedAlbum"):
-            result.skipped_unrevealed += 1
             continue
-        imported = _build_item(entry["album"])
-        if imported.id not in seen_this_pass:
-            if imported.id in existing_items:
-                refreshed = _refreshed(existing_items[imported.id], imported)
-                if refreshed != existing_items[imported.id]:
-                    merged_items[imported.id] = refreshed
-                    result.items_refreshed.append(refreshed)
-                else:
-                    result.items_existing += 1
-            elif imported.id in existing_wants:
-                merged_items[imported.id] = imported
-                wants_to_drop.add(imported.id)
-                result.items_promoted.append(imported)
-            else:
-                merged_items[imported.id] = imported
-                result.items_added.append(imported)
-            seen_this_pass.add(imported.id)
-
-        log_entry = _build_log_entry(imported.id, entry)
-        key = (log_entry.kind, log_entry.item, log_entry.ts)
-        if key in existing_log_keys:
-            result.log_existing += 1
-        else:
-            logs_to_append.append(log_entry)
-            existing_log_keys.add(key)
-            result.log_added.append(log_entry)
-
-    if not dry_run:
-        if merged_items != existing_items:
-            store.write_items("album", list(merged_items.values()))
-        if wants_to_drop:
-            kept = [
-                w for w in existing_wants.values() if w.id not in wants_to_drop
-            ]
-            store.write_wants("album", kept)
-        for log_entry in logs_to_append:
-            store.append_log(log_entry)
-    return result
+        yield _build_item(entry["album"])
 
 
-def summarize(result: ImportResult, *, dry_run: bool) -> str:
-    """
-    Format an :class:`ImportResult` as a single human-readable line.
-
-    Zero-valued categories are elided so the common idempotent re-run
-    reads as ``Up to date ...`` rather than a wall of zeros.
-    """
-    add = "Would add" if dry_run else "Added"
-    add_lower = add.lower()
-    refresh = "would refresh" if dry_run else "refreshed"
-    promote = "would promote" if dry_run else "promoted"
-
-    def _albums(n: int) -> str:
-        return f"{n} album{'' if n == 1 else 's'}"
-
-    clauses: list[str] = []
-    if result.items_added:
-        clauses.append(f"{add} {_albums(len(result.items_added))}")
-    if result.items_refreshed:
-        clauses.append(f"{refresh} {_albums(len(result.items_refreshed))}")
-    if result.items_promoted:
-        clauses.append(
-            f"{promote} {_albums(len(result.items_promoted))} from want",
+def provider_log_entries(sources_dir: Path) -> Iterator[LogEntry]:
+    """Yield ``consumed`` diary entries synthesized from the cached project."""
+    data = load_project(sources_dir)
+    if data is None:
+        return
+    for entry in data.get("history", []):
+        if not entry.get("revealedAlbum"):
+            continue
+        item = _build_item(entry["album"])
+        yield LogEntry(
+            ts=datetime.fromisoformat(entry["generatedAt"]),
+            kind="album",
+            item=item.id,
+            status="consumed",
+            notes=_log_notes(entry),
         )
-    n_l = len(result.log_added)
-    if n_l:
-        verb = add if not clauses else add_lower
-        word = "diary entry" if n_l == 1 else "diary entries"
-        clauses.append(f"{verb} {n_l} {word}")
-
-    if clauses:
-        msg = ", ".join(clauses) + "."
-    else:
-        items_word = "album" if result.items_existing == 1 else "albums"
-        log_word = "log entry" if result.log_existing == 1 else "log entries"
-        msg = (
-            f"Up to date — {result.items_existing} {items_word}, "
-            f"{result.log_existing} {log_word}."
-        )
-    if result.skipped_unrevealed:
-        msg += f" ({result.skipped_unrevealed} unrevealed skipped.)"
-    return msg
-
-
-def _refreshed(existing: Item, imported: Item) -> Item:
-    """
-    Overlay ``imported`` source-of-truth fields onto ``existing``.
-
-    Title, year, and creators are taken from the import; external_ids
-    and metadata dicts are merged with the import's values winning on
-    key conflict (so user-added keys survive a re-import).
-    """
-    return Item(
-        id=existing.id,
-        kind=existing.kind,
-        title=imported.title,
-        year=imported.year,
-        creators=imported.creators or existing.creators,
-        external_ids={**existing.external_ids, **imported.external_ids},
-        metadata={**existing.metadata, **imported.metadata},
-    )
 
 
 def _build_item(album: dict[str, Any]) -> Item:
@@ -252,16 +157,6 @@ def _build_item(album: dict[str, Any]) -> Item:
         year=_parse_year(album.get("releaseDate")),
         creators=[album["artist"]] if album.get("artist") else [],
         external_ids=external_ids,
-    )
-
-
-def _build_log_entry(item_id: str, entry: dict[str, Any]) -> LogEntry:
-    return LogEntry(
-        ts=datetime.fromisoformat(entry["generatedAt"]),
-        kind="album",
-        item=item_id,
-        status="consumed",
-        notes=_log_notes(entry),
     )
 
 

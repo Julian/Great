@@ -13,8 +13,8 @@ from great.albumsgenerator import (
     SOURCE_KEY as ALBUMSGENERATOR_SOURCE_KEY,
     AlbumsGeneratorError,
     fetch_project,
-    import_project,
-    summarize,
+    revealed_counts,
+    save_project,
 )
 from great.lookup import (
     AmbiguousItemError,
@@ -618,13 +618,14 @@ def import_1001albums(
     ] = False,
 ) -> None:
     """
-    Import a 1001albums project as consumed albums + diary entries.
+    Fetch a 1001albums project and save it as a catalog source.
 
-    Each *revealed* album in the project history becomes an album item
-    (id = ``spotify:album:<id>`` when available) plus a ``consumed``
-    log entry timestamped at the album's reveal date. Re-running is
-    idempotent: existing items aren't duplicated, and log entries are
-    deduplicated by (kind, item, timestamp).
+    The raw project JSON is cached at ``sources/albumsgenerator.json``.
+    The derived catalog (read by ranking, render, and ``great show``)
+    picks it up on the next read — each revealed album becomes an
+    album item, each consumed-status diary entry is synthesized from
+    the reveal timestamp, and the album's artist is auto-added to the
+    artist catalog. Re-running just refreshes the cache.
     """
     with _friendly_errors():
         store = Store.find(ctx.obj)
@@ -641,9 +642,18 @@ def import_1001albums(
             )
             raise typer.Exit(1)
         data = fetch_project(resolved_username)
-        result = import_project(store, data, dry_run=dry_run)
-        typer.echo(summarize(result, dry_run=dry_run))
-        if not dry_run and resolved_username != configured:
+        revealed, unrevealed = revealed_counts(data)
+        verb = "Would import" if dry_run else "Imported"
+        suffix = f" ({unrevealed} more awaiting reveal.)" if unrevealed else ""
+        typer.echo(
+            f"{verb} {revealed} albums from "
+            f"{resolved_username}'s project.{suffix}",
+        )
+        if dry_run:
+            return
+        save_project(store.sources_dir, data)
+        store.compile()
+        if resolved_username != configured:
             store.config.sources[ALBUMSGENERATOR_SOURCE_KEY] = {
                 **store.config.sources.get(ALBUMSGENERATOR_SOURCE_KEY, {}),
                 "username": resolved_username,
