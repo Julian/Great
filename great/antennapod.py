@@ -144,6 +144,7 @@ def _read_episodes(
         out.append(
             {
                 "feed_url": feed["feed_url"],
+                "parent_title": feed["title"],
                 "item_identifier": item_identifier,
                 "title": r["title"] or item_identifier,
                 "pub_date_ms": r["pub_date_ms"] or None,
@@ -243,7 +244,12 @@ def _build_episode(episode: dict[str, Any]) -> Item:
     feed_url = episode["feed_url"]
     guid = episode["item_identifier"]
     external_ids = {"feed_url": feed_url, "guid": guid}
+    # The episode's publication year rarely helps when ranking, so we
+    # leave Item.year unset and surface the parent show's title through
+    # metadata instead so display paths can render it.
     metadata: dict[str, Any] = {}
+    if episode.get("parent_title"):
+        metadata["parent_title"] = episode["parent_title"]
     if episode.get("duration_ms"):
         metadata["duration_ms"] = episode["duration_ms"]
     if episode.get("image_url"):
@@ -254,7 +260,6 @@ def _build_episode(episode: dict[str, Any]) -> Item:
         id=_episode_id(feed_url, guid),
         kind="podcast_episode",
         title=episode["title"],
-        year=_year_from_ms(episode.get("pub_date_ms")),
         parent_id=feed_url,
         external_ids=external_ids,
         metadata=metadata,
@@ -264,9 +269,3 @@ def _build_episode(episode: dict[str, Any]) -> Item:
 def _episode_id(feed_url: str, item_identifier: str) -> str:
     """Globally unique episode id within the ``podcast_episode`` kind."""
     return f"{feed_url}#{item_identifier}"
-
-
-def _year_from_ms(ms: int | None) -> int | None:
-    if not ms:
-        return None
-    return datetime.fromtimestamp(ms / 1000, tz=UTC).year

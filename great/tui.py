@@ -81,7 +81,11 @@ class RankApp(App):
             if item.creators
             else ""
         )
-        return f"{rank + 1:2d}. {byline}{escape(item.title)}{suffix}"
+        parent_title = item.metadata.get("parent_title")
+        parent = (
+            f" [dim]— {escape(str(parent_title))}[/]" if parent_title else ""
+        )
+        return f"{rank + 1:2d}. {byline}{escape(item.title)}{suffix}{parent}"
 
     @property
     def _list(self) -> ListView:

@@ -206,8 +206,14 @@ def show(
                 if item.creators
                 else ""
             )
+            parent_title = item.metadata.get("parent_title")
+            parent = (
+                " " + typer.style(f"— {parent_title}", dim=True)
+                if parent_title
+                else ""
+            )
             typer.echo(
-                f"{rank_:3d}. {tier}{byline}{item.title}{suffix}  "
+                f"{rank_:3d}. {tier}{byline}{item.title}{suffix}{parent}  "
                 f"score={s.mean:+.2f} sd={s.variance**0.5:.2f}",
             )
 

@@ -345,8 +345,12 @@ def test_provider_items_set_parent_id_to_feed_url(tmp_path, export_path):
         "guid-ep-1",
     )
     assert ep_1.external_ids["guid"] == "guid-ep-1"
-    # pub_date_ms is 2024-03-01 UTC, year is 2024.
-    assert ep_1.year == 2024
+    # Episodes deliberately leave year unset: pub-year of an episode is
+    # rarely meaningful for ranking, so we don't derive it from pubDate.
+    assert ep_1.year is None
+    # The parent show's title is denormalized into metadata so the
+    # ranking TUI and CLI display paths can show "episode — show".
+    assert ep_1.metadata["parent_title"] == "The Example Show"
 
 
 def test_provider_items_carry_episode_image_url(tmp_path, export_path):
