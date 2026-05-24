@@ -61,6 +61,30 @@ def test_item_round_trip_preserves_defaulted_id():
     assert dumped["id"] == "Anora"
 
 
+def test_item_parent_id_defaults_none_and_omits_from_dump():
+    item = Item(id="tt1", kind="movie", title="Anora")
+    assert item.parent_id is None
+    assert "parent_id" not in item.to_dict()
+
+
+def test_item_parent_id_round_trip():
+    item = Item(
+        id="ep-guid",
+        kind="podcast_episode",
+        title="Ep 1",
+        parent_id="https://example.com/feed.rss",
+    )
+    assert (
+        Item.model_validate(item.model_dump()).parent_id
+        == "https://example.com/feed.rss"
+    )
+
+
+def test_item_parent_id_rejected_on_parentless_kind():
+    with pytest.raises(ValidationError, match="no parent collection"):
+        Item(id="tt1", kind="movie", title="Anora", parent_id="something")
+
+
 def test_comparison_pairwise():
     c = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),

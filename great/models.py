@@ -18,6 +18,7 @@ ItemKind = Literal[
     "album",
     "artist",
     "podcast",
+    "podcast_episode",
     "book",
     "game",
 ]
@@ -28,8 +29,17 @@ KIND_PLURAL: dict[ItemKind, str] = {
     "album": "albums",
     "artist": "artists",
     "podcast": "podcasts",
+    "podcast_episode": "podcast_episodes",
     "book": "books",
     "game": "games",
+}
+# Catalog kind a child item's ``parent_id`` resolves into. A song's
+# parent_id refers to an album item; a podcast episode's, to a podcast.
+# Kinds absent from this mapping have no parent relationship and
+# should leave ``parent_id`` unset.
+PARENT_KIND: dict[ItemKind, ItemKind] = {
+    "song": "album",
+    "podcast_episode": "podcast",
 }
 LogStatus = Literal["consumed", "started", "abandoned"]
 
@@ -44,6 +54,11 @@ class Item(BaseModel):
     (``want/<kind>.toml``) combined — the two are disjoint, and an
     item is promoted from want to consumed by moving the record. For
     hand-written items the id defaults to the title.
+
+    ``parent_id`` links a sub-item to its parent collection — a song to
+    its album, a podcast episode to its podcast. The catalog kind to
+    look the parent up in lives in :data:`PARENT_KIND`; kinds outside
+    that mapping have no parent and should leave the field unset.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -53,6 +68,7 @@ class Item(BaseModel):
     title: str
     year: int | None = None
     creators: list[str] = Field(default_factory=list)
+    parent_id: str | None = None
     external_ids: dict[str, str] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -62,6 +78,16 @@ class Item(BaseModel):
         if isinstance(data, dict) and "id" not in data and "title" in data:
             return {**data, "id": data["title"]}
         return data
+
+    @model_validator(mode="after")
+    def _parent_id_requires_parented_kind(self) -> Self:
+        if self.parent_id is not None and self.kind not in PARENT_KIND:
+            raise ValueError(
+                f"items of kind {self.kind!r} have no parent collection; "
+                f"`parent_id` may only be set on kinds in PARENT_KIND "
+                f"({sorted(PARENT_KIND)}).",
+            )
+        return self
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], *, kind: ItemKind) -> Self:

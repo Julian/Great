@@ -163,6 +163,7 @@ def test_init_seeds_default_lists_when_no_lists(tmp_path):
         ("songs", "song"),
         ("books", "book"),
         ("podcasts", "podcast"),
+        ("podcast_episodes", "podcast_episode"),
         ("games", "game"),
     }
     for kind, filename in (
@@ -173,6 +174,7 @@ def test_init_seeds_default_lists_when_no_lists(tmp_path):
         ("song", "songs"),
         ("book", "books"),
         ("podcast", "podcasts"),
+        ("podcast_episode", "podcast_episodes"),
         ("game", "games"),
     ):
         body = (target / "items" / f"{filename}.toml").read_text()

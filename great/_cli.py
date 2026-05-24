@@ -23,6 +23,7 @@ from great.lookup import (
 )
 from great.models import (
     KIND_PLURAL,
+    PARENT_KIND,
     GreatConfig,
     Item,
     ItemKind,
@@ -58,6 +59,7 @@ DEFAULT_LISTS: tuple[ListConfig, ...] = (
     ListConfig(name="songs", kind="song"),
     ListConfig(name="books", kind="book"),
     ListConfig(name="podcasts", kind="podcast"),
+    ListConfig(name="podcast_episodes", kind="podcast_episode"),
     ListConfig(name="games", kind="game"),
 )
 
@@ -65,10 +67,16 @@ DEFAULT_LISTS: tuple[ListConfig, ...] = (
 def _example_items_toml(kind: ItemKind) -> str:
     """Body for an empty items file with a commented schema example."""
     header = f"# Items of kind `{kind}` go here, one [[items]] table each.\n"
+    parent = PARENT_KIND.get(kind)
+    parent_clause = (
+        f", `parent_id` (the id of the parent {parent})" if parent else ""
+    )
     body = (
         "# Required key per item: `title`. Optional: `id` (defaults to\n"
-        "# the title), `year`, `external_ids`, `metadata`. The `kind` is\n"
-        "# implied by the filename and must not appear inside [[items]].\n"
+        "# the title), `year`, `creators`, `external_ids`, `metadata`"
+        f"{parent_clause}.\n"
+        "# The `kind` is implied by the filename and must not appear\n"
+        "# inside [[items]].\n"
         "#\n"
     )
     commented = "".join(
