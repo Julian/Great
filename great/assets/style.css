@@ -227,6 +227,15 @@ table.ranked td.title .byline { display: block; margin-left: 0; margin-top: 0.1r
   letter-spacing: 0;
 }
 
+.byline a, .byline-line a {
+  color: inherit;
+  text-decoration-color: rgba(122, 58, 20, 0.18);
+}
+.byline a:hover, .byline-line a:hover {
+  color: var(--link-hover);
+  text-decoration-color: var(--link-hover);
+}
+
 table.ranked td.tier {
   font-family: var(--display);
   font-style: italic;

@@ -10,7 +10,7 @@
   <li>
     <time datetime="{{ entry.ts.date().isoformat() }}">{{ entry.ts.strftime('%b %-d') }}</time>
     <span class="badge">{{ entry.kind }}</span>
-    <span class="title"><a href="{{ entry.href }}">{{ entry.title }}</a>{% if entry.creators %}<span class="byline">{{ entry.creators|join(", ") }}</span>{% endif %}</span>
+    <span class="title"><a href="{{ entry.href }}">{{ entry.title }}</a>{% if entry.creators %}<span class="byline">{% for c in entry.creators %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</span>
     <span class="badge status-{{ entry.status }}">{{ entry.status }}</span>
     {% if entry.notes %}<span class="notes">{{ entry.notes }}</span>{% endif %}
   </li>

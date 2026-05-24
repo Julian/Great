@@ -2,7 +2,7 @@
 {% block title %}{{ item.title }} &mdash; Great{% endblock %}
 {% block content %}
 <h2 class="item-title">{{ item.title }}{% if item.year %} <span class="year">({{ item.year }})</span>{% endif %}</h2>
-{% if item.creators %}<p class="byline-line">{{ item.creators|join(", ") }}</p>{% endif %}
+{% if byline %}<p class="byline-line">{% for c in byline %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 <p class="meta">
   <span class="badge">{{ item.kind }}</span>
   <code>{{ item.id }}</code>
@@ -19,6 +19,19 @@
       no. {{ entry.rank }} of {{ entry.total }}
       &mdash; score {{ "%+.2f"|format(entry.score.mean) }} &pm; {{ "%.2f"|format(entry.score.variance ** 0.5) }}
     </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if appears_on %}
+<h3>Appears on</h3>
+<ul class="list-index">
+  {% for credit in appears_on %}
+  <li>
+    <a href="../{{ credit.kind }}/{{ credit.id|slug }}.html">{{ credit.title }}</a>
+    <span class="badge">{{ credit.kind }}</span>
+    {% if credit.year %}<span class="meta">{{ credit.year }}</span>{% endif %}
   </li>
   {% endfor %}
 </ul>

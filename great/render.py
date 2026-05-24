@@ -11,7 +11,7 @@ import jinja2
 
 from great.models import Item, ItemKind, LogEntry
 from great.ranking import Score, infer, rescale_to_quantiles
-from great.store import Store
+from great.store import MUSIC_KINDS, Store
 
 TIER_LETTERS = ("D", "C", "B", "A", "S")
 N_QUANTILES = len(TIER_LETTERS)
@@ -44,8 +44,14 @@ def build_site(store: Store, out: Path) -> None:
             *(item for queue in want_data for item in queue["ranked"]),
         ]
     }
+    artist_by_name = {
+        i.title: i for i in items_by_key.values() if i.kind == "artist"
+    }
+    appears_on_by_name = _appears_on_index(items_by_key)
     log_entries = sorted(store.log(), key=lambda e: e.ts, reverse=True)
-    log_view = [_log_view(e, items_by_key) for e in log_entries]
+    log_view = [
+        _log_view(e, items_by_key, artist_by_name) for e in log_entries
+    ]
 
     write = _writer(build_ts)
     write(
@@ -53,7 +59,7 @@ def build_site(store: Store, out: Path) -> None:
         env.get_template("index.html"),
         up="",
         lists=list_data,
-        recent_log=log_view[:20],
+        recent_log=[e for e in log_view if e["status"] == "consumed"][:20],
     )
 
     lists_dir = out / "lists"
@@ -83,12 +89,19 @@ def build_site(store: Store, out: Path) -> None:
         ]
         item_path = out / "items" / item.kind / f"{slug(item.id)}.html"
         item_path.parent.mkdir(parents=True, exist_ok=True)
+        appears_on = (
+            appears_on_by_name.get(item.title, [])
+            if item.kind == "artist"
+            else []
+        )
         write(
             item_path,
             env.get_template("item.html"),
             up="../../",
             item=item,
+            byline=_creators_view(item.creators, artist_by_name, up="../../"),
             in_lists=in_lists,
+            appears_on=appears_on,
             log_entries=item_log.get((item.kind, item.id), []),
             metadata=item.metadata,
             external_links=_external_links(item.external_ids),
@@ -122,8 +135,10 @@ def slug(item_id: str) -> str:
 def _log_view(
     entry: LogEntry,
     items_by_key: dict[tuple[ItemKind, str], Item],
+    artist_by_name: dict[str, Item],
 ) -> dict[str, Any]:
     item = items_by_key.get((entry.kind, entry.item))
+    creators = item.creators if item else []
     return {
         "ts": entry.ts,
         "status": entry.status,
@@ -131,9 +146,49 @@ def _log_view(
         "kind": entry.kind,
         "item_id": entry.item,
         "title": item.title if item else entry.item,
-        "creators": item.creators if item else [],
+        "creators": _creators_view(creators, artist_by_name),
         "href": f"items/{entry.kind}/{slug(entry.item)}.html",
     }
+
+
+def _appears_on_index(
+    items_by_key: dict[tuple[ItemKind, str], Item],
+) -> dict[str, list[Item]]:
+    """
+    Build a creator-name → music items index for artist pages.
+
+    Restricted to music kinds: a movie credit happening to share a string
+    with an artist's title shouldn't pull the movie onto that artist's page.
+    Each list is sorted newest-first, then by title.
+    """
+    out: dict[str, list[Item]] = {}
+    for item in items_by_key.values():
+        if item.kind not in MUSIC_KINDS:
+            continue
+        for name in item.creators:
+            out.setdefault(name, []).append(item)
+    for credits in out.values():
+        credits.sort(key=lambda i: (-(i.year or 0), i.title.casefold()))
+    return out
+
+
+def _creators_view(
+    creators: list[str],
+    artist_by_name: dict[str, Item],
+    *,
+    up: str = "",
+) -> list[dict[str, str | None]]:
+    """Per-creator {name, href} dicts; href is None when no artist exists."""
+    out: list[dict[str, str | None]] = []
+    for name in creators:
+        artist = artist_by_name.get(name)
+        href = (
+            f"{up}items/artist/{slug(artist.id)}.html"
+            if artist is not None
+            else None
+        )
+        out.append({"name": name, "href": href})
+    return out
 
 
 def _group_by_month(log_view: list[dict[str, Any]]) -> list[dict[str, Any]]:

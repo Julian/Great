@@ -100,7 +100,199 @@ def test_index_lists_recent_log(populated, tmp_path):
     build_site(populated, out)
     html = (out / "index.html").read_text()
     assert "Anora" in html
-    assert "consumed" in html
+    # The "Recently consumed" section title already says it; we don't
+    # want a status-consumed badge repeated on every row.
+    assert "Recently consumed" in html
+    assert "status-consumed" not in html
+
+
+def test_diary_still_shows_status_badges(populated, tmp_path):
+    # Diary is a full activity log, not filtered to consumed, so the
+    # per-entry status badge stays.
+    out = tmp_path / "dist"
+    build_site(populated, out)
+    html = (out / "diary.html").read_text()
+    assert "status-consumed" in html
+
+
+def test_index_and_diary_link_creator_to_artist_page(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="spotify:album:1",
+                kind="album",
+                title="Crazysexycool",
+                creators=["TLC"],
+            ),
+        ],
+    )
+    store.append_log(
+        LogEntry(
+            ts=datetime(2026, 5, 1, tzinfo=UTC),
+            kind="album",
+            item="spotify:album:1",
+            status="consumed",
+        ),
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    index = (out / "index.html").read_text()
+    diary = (out / "diary.html").read_text()
+    # The auto-synthesized TLC artist gets linked from both views.
+    expected = '<a href="items/artist/TLC.html">TLC</a>'
+    assert expected in index
+    assert expected in diary
+
+
+def test_item_page_links_creator_to_artist_page(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="spotify:album:1",
+                kind="album",
+                title="Crazysexycool",
+                creators=["TLC"],
+            ),
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "album" / "spotify%3Aalbum%3A1.html").read_text()
+    assert '<a href="../../items/artist/TLC.html">TLC</a>' in page
+
+
+def test_index_recent_log_only_shows_consumed(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [Item(id="tt1", kind="movie", title="Anora", year=2024)],
+    )
+    # An abandoned entry should not surface in "Recently consumed",
+    # but should still appear in the full diary.
+    store.append_log(
+        LogEntry(
+            ts=datetime(2026, 5, 1, tzinfo=UTC),
+            kind="movie",
+            item="tt1",
+            status="abandoned",
+        ),
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    assert "Anora" not in (out / "index.html").read_text()
+    assert "Anora" in (out / "diary.html").read_text()
+
+
+def test_artist_page_lists_appears_on(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Crazysexycool",
+                year=1994,
+                creators=["TLC"],
+            ),
+            Item(
+                id="a2",
+                kind="album",
+                title="Fanmail",
+                year=1999,
+                creators=["TLC"],
+            ),
+            Item(
+                id="a3",
+                kind="album",
+                title="Unrelated",
+                creators=["Other"],
+            ),
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "artist" / "TLC.html").read_text()
+    assert "Appears on" in page
+    assert "Crazysexycool" in page
+    assert "Fanmail" in page
+    assert "Unrelated" not in page
+    # Newest first.
+    assert page.find("Fanmail") < page.find("Crazysexycool")
+
+
+def test_appears_on_excludes_non_music_items(tmp_path):
+    # A movie sharing a creator-name string with an artist title should
+    # not be pulled onto the artist's page.
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="movies", kind="movie"),
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [Item(id="m1", kind="movie", title="Movie", creators=["TLC"])],
+    )
+    store.write_items(
+        "album",
+        [Item(id="a1", kind="album", title="Album", creators=["TLC"])],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "artist" / "TLC.html").read_text()
+    assert "Album" in page
+    assert "Movie" not in page
+
+
+def test_non_artist_pages_omit_appears_on(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Crazysexycool",
+                creators=["TLC"],
+            ),
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "album" / "a1.html").read_text()
+    assert "Appears on" not in page
 
 
 def test_diary_shows_notes(populated, tmp_path):
