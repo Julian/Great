@@ -11,7 +11,7 @@ layout itself.
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Self
+from typing import Literal, Self
 import random
 import textwrap
 
@@ -23,7 +23,8 @@ RANDOM_SEED_EVERY = 5
 RANK_MAX_ITERS_DEFAULT = 100
 MAX_K = 5
 
-RankResult = list[list[int]] | None
+SKIP: Literal["skip"] = "skip"
+RankResult = list[list[int]] | Literal["skip"] | None
 Session = Callable[[list[Item]], RankResult]
 
 
@@ -102,7 +103,10 @@ def run_rank_loop(
     The ``session`` callable is responsible for prompting the user
     (via TUI, scripted test fixture, or anything else); it receives
     the proposed cluster of items and returns either an ordering
-    (list of tie groups) or ``None`` to end the session early.
+    (list of tie groups), :data:`SKIP` to discard the cluster and
+    request another, or ``None`` to end the session early. A skip
+    forces the next iteration onto a random seed so the user is
+    unlikely to be handed back the same cluster.
 
     ``focus_ids`` restricts cluster seeding to a subset of item ids
     (e.g. items just added via ``great add``): the loop keeps picking
@@ -125,14 +129,16 @@ def run_rank_loop(
     comparisons = list(scope.comparisons)
     by_id = {item.id: item for item in items}
     appended = 0
+    force_random_next = False
 
     for iteration in range(max_iters):
         scores = infer(comparisons, items)
-        force_random = (
+        force_random = force_random_next or (
             focus_ids is None
             and iteration > 0
             and iteration % RANDOM_SEED_EVERY == 0
         )
+        force_random_next = False
         cluster_ids = select_cluster(
             scores,
             items,
@@ -149,6 +155,9 @@ def run_rank_loop(
         result = session(cluster)
         if result is None:
             break
+        if result == SKIP:
+            force_random_next = True
+            continue
 
         c = Comparison(
             ts=datetime.now(UTC),

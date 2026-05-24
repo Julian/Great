@@ -4,8 +4,8 @@ Textual ranking session.
 A user runs `great rank <list>`, the engine selects a cluster of
 items, and we pop a Textual app that lets the user reorder the
 cluster from best to worst (j/k navigates, J/K moves the focused
-item, ``t`` declares the whole cluster a tie, Enter submits, q/Esc
-cancels).
+item, ``t`` declares the whole cluster a tie, ``s`` skips the
+cluster and asks for another, Enter submits, q/Esc cancels).
 """
 
 from typing import ClassVar
@@ -16,7 +16,7 @@ from textual.binding import Binding
 from textual.widgets import Footer, Header, Label, ListItem, ListView
 
 from great.models import Item
-from great.session import RankResult, Session
+from great.session import SKIP, RankResult, Session
 
 __all__ = ["RankApp", "RankResult", "Session", "run_rank_session"]
 
@@ -41,6 +41,7 @@ class RankApp(App):
             for n in range(2, 10)
         ),
         Binding("t", "tie", "Tie", priority=True),
+        Binding("s", "skip", "Skip", priority=True),
         Binding("enter", "submit", "Submit", priority=True),
         Binding("q,escape", "cancel", "Cancel", priority=True),
     ]
@@ -57,7 +58,7 @@ class RankApp(App):
         yield Label(
             "Rank from best to worst. "
             "j/k focus, J/K move, 1-9 send to rank, "
-            "t=tie, Enter submit, q cancel.",
+            "t=tie, s=skip, Enter submit, q cancel.",
             id="hint",
         )
         yield ListView(
@@ -134,6 +135,11 @@ class RankApp(App):
     def action_tie(self) -> None:
         """Submit the cluster as a single indistinguishable tie group."""
         self.result = [list(self._order)]
+        self.exit()
+
+    def action_skip(self) -> None:
+        """Discard this cluster without recording and request another."""
+        self.result = SKIP
         self.exit()
 
     def action_submit(self) -> None:

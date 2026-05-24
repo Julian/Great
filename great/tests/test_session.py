@@ -2,6 +2,7 @@ import pytest
 
 from great.models import GreatConfig, Item, ListConfig
 from great.session import (
+    SKIP,
     InsufficientItemsError,
     RankingScope,
     add_items,
@@ -35,6 +36,35 @@ def test_run_rank_loop_session_can_signal_quit(tmp_path, make_movies_store):
 
     assert appended == 0
     assert store.comparisons("movies") == []
+
+
+def test_run_rank_loop_session_can_skip_cluster(tmp_path, make_movies_store):
+    items = [
+        Item(id=f"tt{i}", kind="movie", title=f"M{i}", year=2000 + i)
+        for i in range(6)
+    ]
+    store = make_movies_store(tmp_path, items=items)
+
+    calls = {"n": 0}
+
+    def session(cluster):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return SKIP
+        if calls["n"] == 2:
+            return [[i] for i in range(len(cluster))]
+        return None
+
+    appended = run_rank_loop(
+        RankingScope.for_list(store, "movies"),
+        session=session,
+        max_iters=10,
+    )
+
+    assert calls["n"] == 3  # skip, record, cancel
+    assert appended == 1
+    [c] = store.comparisons("movies")
+    assert c.ordering == [[0], [1], [2], [3], [4]]
 
 
 def test_run_rank_loop_records_tie(tmp_path, make_movies_store):

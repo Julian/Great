@@ -1,6 +1,7 @@
 import pytest
 
 from great.models import Item
+from great.session import SKIP
 from great.tui import RankApp
 
 
@@ -102,3 +103,11 @@ async def test_cancel_returns_none():
     async with app.run_test() as pilot:
         await pilot.press("q")
     assert app.result is None
+
+
+@pytest.mark.asyncio
+async def test_skip_returns_skip_sentinel():
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+    assert app.result == SKIP
