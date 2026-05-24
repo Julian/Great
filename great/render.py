@@ -99,7 +99,11 @@ def build_site(store: Store, out: Path) -> None:
             env.get_template("item.html"),
             up="../../",
             item=item,
-            byline=_creators_view(item.creators, artist_by_name, up="../../"),
+            creators=_creators_view(
+                item.creators,
+                artist_by_name,
+                up="../../",
+            ),
             in_lists=in_lists,
             appears_on=appears_on,
             log_entries=item_log.get((item.kind, item.id), []),
@@ -302,6 +306,12 @@ def _external_links(
     external_ids: dict[str, str],
 ) -> list[dict[str, str | None]]:
     """Render external_ids as a list of {source, label, value, url?} dicts."""
+    rank = {src: i for i, src in enumerate(EXTERNAL_ID_ORDER)}
+    tail = len(EXTERNAL_ID_ORDER)
+    ordered = sorted(
+        external_ids.items(),
+        key=lambda kv: (rank.get(kv[0], tail), kv[0]),
+    )
     return [
         {
             "source": source,
@@ -309,8 +319,36 @@ def _external_links(
             "value": value,
             "url": _external_url(source, value),
         }
-        for source, value in external_ids.items()
+        for source, value in ordered
     ]
+
+
+# Canonical encyclopedia and catalog ids first, then primary streamers,
+# then secondary streamers, then importer-specific ids. Unknown sources
+# fall to the end in alphabetical order.
+EXTERNAL_ID_ORDER: tuple[str, ...] = (
+    "wikipedia",
+    "musicbrainz_release",
+    "musicbrainz_recording",
+    "musicbrainz_artist",
+    "imdb",
+    "tmdb_movie",
+    "tmdb_tv",
+    "tmdb",
+    "openlibrary",
+    "isbn",
+    "goodreads",
+    "igdb",
+    "discogs",
+    "spotify",
+    "apple_music",
+    "tidal",
+    "deezer",
+    "youtube_music",
+    "qobuz",
+    "bandcamp",
+    "1001albums",
+)
 
 
 EXTERNAL_ID_URL_TEMPLATES: dict[str, str] = {

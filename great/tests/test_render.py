@@ -270,6 +270,76 @@ def test_appears_on_excludes_non_music_items(tmp_path):
     assert "Movie" not in page
 
 
+def test_artist_page_hides_id_when_equal_to_title(tmp_path):
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [Item(id="a1", kind="album", title="Album", creators=["TLC"])],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "artist" / "TLC.html").read_text()
+    # Synthesized artist: id == title == "TLC". We don't want to print
+    # "TLC" twice; the title line carries it.
+    assert "<code>TLC</code>" not in page
+
+
+def test_item_page_shows_id_when_distinct_from_title(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "movie",
+        [Item(id="tt1", kind="movie", title="Anora")],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "movie" / "tt1.html").read_text()
+    assert "<code>tt1</code>" in page
+
+
+def test_external_links_render_in_priority_order(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="albums", kind="album")])
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Album",
+                external_ids={
+                    "1001albums": "uuid",
+                    "spotify": "spotify:album:1",
+                    "wikipedia": "Album_(album)",
+                    "tidal": "1",
+                    "custom_thing": "x",
+                },
+            ),
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "items" / "album" / "a1.html").read_text()
+    # Wikipedia (encyclopedia) before primary streamer (Spotify) before
+    # secondary streamer (Tidal) before importer id (1001albums).
+    # Unknown sources sort alphabetically at the end.
+    positions = [
+        page.find("Wikipedia"),
+        page.find("Spotify"),
+        page.find("Tidal"),
+        page.find("1001 Albums"),
+        page.find("custom_thing"),
+    ]
+    assert positions == sorted(positions), positions
+    assert all(p != -1 for p in positions)
+
+
 def test_non_artist_pages_omit_appears_on(tmp_path):
     config = GreatConfig(
         lists=[

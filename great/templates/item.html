@@ -2,10 +2,10 @@
 {% block title %}{{ item.title }} &mdash; Great{% endblock %}
 {% block content %}
 <h2 class="item-title">{{ item.title }}{% if item.year %} <span class="year">({{ item.year }})</span>{% endif %}</h2>
-{% if byline %}<p class="byline-line">{% for c in byline %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+{% if creators %}<p class="byline-line">{% for c in creators %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 <p class="meta">
   <span class="badge">{{ item.kind }}</span>
-  <code>{{ item.id }}</code>
+  {% if item.id != item.title %}<code>{{ item.id }}</code>{% endif %}
 </p>
 
 {% if in_lists %}
