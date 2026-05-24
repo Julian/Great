@@ -67,6 +67,7 @@ def _build_db(path: Path) -> sqlite3.Connection:
             title TEXT,
             pubDate INTEGER,
             read INTEGER NOT NULL DEFAULT 0,
+            image_url TEXT,
             media INTEGER
         );
 
@@ -110,6 +111,7 @@ def _insert_episode(
     duration_ms: int | None = 1_800_000,
     completed_at_ms: int = 0,
     favorite: bool = False,
+    image_url: str | None = None,
 ) -> None:
     # Mirror real AntennaPod exports: FeedMedia carries the back-pointer
     # to FeedItems.id, while FeedItems.media is left NULL.
@@ -122,8 +124,9 @@ def _insert_episode(
         )
     conn.execute(
         "INSERT INTO FeedItems "
-        "(id, feed, item_identifier, title, pubDate, read, media) "
-        "VALUES (?, ?, ?, ?, ?, ?, NULL)",
+        "(id, feed, item_identifier, title, pubDate, read, image_url, "
+        "media) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
         (
             feeditem_id,
             feed_id,
@@ -131,6 +134,7 @@ def _insert_episode(
             title,
             pub_date_ms,
             read,
+            image_url,
         ),
     )
     if favorite:
@@ -163,6 +167,7 @@ def export_path(tmp_path):
         read=1,
         completed_at_ms=_COMPLETED_2026,
         favorite=True,
+        image_url="https://example.com/ep1.jpg",
     )
     # Same feed, played but no completion timestamp.
     _insert_episode(
@@ -344,6 +349,23 @@ def test_provider_items_set_parent_id_to_feed_url(tmp_path, export_path):
     assert ep_1.year == 2024
 
 
+def test_provider_items_carry_episode_image_url(tmp_path, export_path):
+    save_export(tmp_path, read_export(export_path))
+    ep_1 = next(
+        i
+        for i in provider_items(tmp_path)
+        if i.kind == "podcast_episode" and i.title == "Episode 1"
+    )
+    assert ep_1.metadata["image_url"] == "https://example.com/ep1.jpg"
+    # Episodes without their own artwork omit the key entirely.
+    ep_2 = next(
+        i
+        for i in provider_items(tmp_path)
+        if i.kind == "podcast_episode" and i.title == "Episode 2"
+    )
+    assert "image_url" not in ep_2.metadata
+
+
 def test_provider_items_carry_podcast_metadata(tmp_path, export_path):
     save_export(tmp_path, read_export(export_path))
     show = next(
@@ -413,6 +435,33 @@ def test_provider_items_surface_via_store(podcast_store, export_path):
     assert "Episode 1" in episodes
 
 
+def test_parent_id_survives_derived_catalog_round_trip(
+    podcast_store,
+    export_path,
+):
+    save_export(podcast_store.sources_dir, read_export(export_path))
+    # First read forces a compile that writes derived/podcast_episodes.toml.
+    first_episode = next(
+        e
+        for e in podcast_store.items("podcast_episode")
+        if e.title == "Episode 1"
+    )
+    feed_url = "https://example.com/feed.rss"
+    assert first_episode.parent_id == feed_url
+    # The derived TOML on disk must carry parent_id verbatim — otherwise
+    # a fresh Store instance would lose the linkage.
+    derived = (
+        podcast_store.root / "derived" / "podcast_episodes.toml"
+    ).read_text()
+    assert f'parent_id = "{feed_url}"' in derived
+    # A second Store reading the derived layer (no recompile) must see
+    # parent_id intact.
+    reread = Store(podcast_store.root)
+    assert any(
+        e.parent_id == feed_url for e in reread.items("podcast_episode")
+    )
+
+
 def test_provider_log_entries_surface_via_store(podcast_store, export_path):
     save_export(podcast_store.sources_dir, read_export(export_path))
     entries = [e for e in podcast_store.log() if e.kind == "podcast_episode"]
@@ -473,6 +522,32 @@ def test_cli_import_dry_run_does_not_write_cache(tmp_path, export_path):
     assert result.exit_code == 0, result.output
     assert "Would import" in result.output
     assert not (repo / "sources" / CACHE_FILENAME).exists()
+
+
+def test_cli_import_warns_on_unexpected_schema_version(tmp_path):
+    repo = _make_store(tmp_path)
+    path = tmp_path / "old.db"
+    conn = _build_db(path)
+    # Override the version PRAGMA the builder set.
+    conn.executescript("PRAGMA user_version = 2000000;")
+    _insert_feed(conn, 1, url="https://example.com/feed.rss")
+    _insert_episode(
+        conn,
+        feeditem_id=10,
+        feed_id=1,
+        item_identifier="guid-old",
+        title="Old",
+        read=1,
+        completed_at_ms=_COMPLETED_2026,
+    )
+    conn.commit()
+    conn.close()
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(repo), "import", "antennapod", str(path)],
+    )
+    assert result.exit_code == 0, result.output
+    assert "schema 2000000 differs" in result.output
 
 
 def test_cli_import_errors_when_file_missing(tmp_path):

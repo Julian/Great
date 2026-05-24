@@ -17,6 +17,7 @@ from great.albumsgenerator import (
     save_project,
 )
 from great.antennapod import (
+    EXPECTED_SCHEMA_VERSION,
     AntennaPodError,
     counts as antennapod_counts,
     read_export,
@@ -719,6 +720,14 @@ def import_antennapod(
     with _friendly_errors():
         store = Store.find(ctx.obj)
         data = read_export(path)
+        version = data["schema_version"]
+        if version != EXPECTED_SCHEMA_VERSION:
+            typer.echo(
+                f"warning: AntennaPod schema {version} differs from the "
+                f"expected {EXPECTED_SCHEMA_VERSION}; some fields may be "
+                "missing.",
+                err=True,
+            )
         podcasts, episodes, completed = antennapod_counts(data)
         verb = "Would import" if dry_run else "Imported"
         typer.echo(

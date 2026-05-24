@@ -27,6 +27,11 @@ from great.models import Item, LogEntry
 SOURCE_KEY = "antennapod"
 CACHE_FILENAME = "antennapod.json"
 
+# The PodDBAdapter schema version of current AntennaPod (3.11.x).
+# Older exports may parse but with missing columns; the CLI warns when
+# this differs from what the export reports.
+EXPECTED_SCHEMA_VERSION = 3110000
+
 # AntennaPod's `Feeds.state` enum. ``STATE_ARCHIVED`` rows are skipped;
 # subscribed and unsubscribed-but-kept feeds are both surfaced so
 # previously-played episodes still resolve to their parent podcast.
@@ -114,6 +119,7 @@ def _read_episodes(
         "  fi.title, "
         "  fi.pubDate AS pub_date_ms, "
         "  fi.read, "
+        "  fi.image_url AS image_url, "
         "  fm.duration AS duration_ms, "
         "  fm.playback_completion_date AS completed_at_ms, "
         "  CASE WHEN fav.feeditem IS NOT NULL THEN 1 ELSE 0 END "
@@ -142,6 +148,7 @@ def _read_episodes(
                 "title": r["title"] or item_identifier,
                 "pub_date_ms": r["pub_date_ms"] or None,
                 "duration_ms": r["duration_ms"] or None,
+                "image_url": r["image_url"] or None,
                 "read": r["read"],
                 "completed_at_ms": r["completed_at_ms"] or None,
                 "is_favorite": bool(r["is_favorite"]),
@@ -239,6 +246,8 @@ def _build_episode(episode: dict[str, Any]) -> Item:
     metadata: dict[str, Any] = {}
     if episode.get("duration_ms"):
         metadata["duration_ms"] = episode["duration_ms"]
+    if episode.get("image_url"):
+        metadata["image_url"] = episode["image_url"]
     if episode.get("is_favorite"):
         metadata["favorite"] = True
     return Item(
