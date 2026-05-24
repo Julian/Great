@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import byline %}
 {% block title %}{{ item.title }} &mdash; Great{% endblock %}
 {% block content %}
 <h2 class="item-title">{{ item.title }}{% if item.year %} <span class="year">({{ item.year }})</span>{% endif %}</h2>
-{% if creators %}<p class="byline-line">{% for c in creators %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+{% if creators %}<p class="byline-line">{{ byline(creators) }}</p>{% endif %}
 <p class="meta">
   <span class="badge">{{ item.kind }}</span>
   {% if item.id != item.title %}<code>{{ item.id }}</code>{% endif %}
@@ -29,7 +30,7 @@
 <ul class="list-index">
   {% for credit in appears_on %}
   <li>
-    <a href="../{{ credit.kind }}/{{ credit.id|slug }}.html">{{ credit.title }}</a>
+    <a href="../{{ credit.kind }}/{{ credit.id|slug_href }}.html">{{ credit.title }}</a>
     <span class="badge">{{ credit.kind }}</span>
     {% if credit.year %}<span class="meta">{{ credit.year }}</span>{% endif %}
   </li>

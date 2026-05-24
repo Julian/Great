@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import byline %}
 {% block title %}Queue &mdash; Great{% endblock %}
 {% block content %}
 <h2>Want to consume</h2>
@@ -13,8 +14,8 @@
   {% for row in queue.rows %}
   <li>
     <span class="title">
-      <a href="items/{{ row.item.kind }}/{{ row.item.id|slug }}.html">{{ row.item.title }}</a>
-      {% if row.item.creators %}<span class="byline">{{ row.item.creators|join(", ") }}</span>{% endif %}
+      <a href="items/{{ row.item.kind }}/{{ row.item.id|slug_href }}.html">{{ row.item.title }}</a>
+      {% if row.creators %}<span class="byline">{{ byline(row.creators) }}</span>{% endif %}
       {% if row.item.year %}<small>({{ row.item.year }})</small>{% endif %}
     </span>
     {% if queue.comparison_count %}

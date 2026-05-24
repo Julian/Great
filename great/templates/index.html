@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import byline %}
 {% block title %}Great{% endblock %}
 {% block content %}
 <h2>Lists</h2>
@@ -23,7 +24,7 @@
   <li>
     <time datetime="{{ entry.ts.date().isoformat() }}">{{ entry.ts.strftime('%b %-d') }}</time>
     <span class="badge">{{ entry.kind }}</span>
-    <span class="title"><a href="{{ entry.href }}">{{ entry.title }}</a>{% if entry.creators %}<span class="byline">{% for c in entry.creators %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</span>
+    <span class="title"><a href="{{ entry.href }}">{{ entry.title }}</a>{% if entry.creators %}<span class="byline">{{ byline(entry.creators) }}</span>{% endif %}</span>
   </li>
   {% endfor %}
 </ul>

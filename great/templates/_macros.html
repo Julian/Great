@@ -1,0 +1,3 @@
+{% macro byline(creators) -%}
+{% for c in creators %}{% if c.href %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endmacro %}

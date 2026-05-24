@@ -30,23 +30,25 @@ def build_site(store: Store, out: Path) -> None:
         autoescape=True,
         keep_trailing_newline=True,
     )
-    env.filters["slug"] = slug
+    env.filters["slug_href"] = slug_href
     build_ts = datetime.now().astimezone()
 
     _copy_assets(out)
 
-    list_data = [d for d in _aggregate_lists(store) if d["ranked"]]
-    want_data = _aggregate_wants(store)
+    all_items = store.all_items()
     items_by_key: dict[tuple[ItemKind, str], Item] = {
-        (item.kind, item.id): item
-        for item in [
-            *store.all_items(),
-            *(item for queue in want_data for item in queue["ranked"]),
-        ]
+        (item.kind, item.id): item for item in all_items
     }
     artist_by_name = {
         i.title: i for i in items_by_key.values() if i.kind == "artist"
     }
+    list_data = [
+        d for d in _aggregate_lists(store, artist_by_name) if d["ranked"]
+    ]
+    want_data = _aggregate_wants(store, artist_by_name)
+    for queue in want_data:
+        for item in queue["ranked"]:
+            items_by_key.setdefault((item.kind, item.id), item)
     appears_on_by_name = _appears_on_index(items_by_key)
     log_entries = sorted(store.log(), key=lambda e: e.ts, reverse=True)
     log_view = [
@@ -128,12 +130,27 @@ def build_site(store: Store, out: Path) -> None:
 
 def slug(item_id: str) -> str:
     """
-    Map an item id to a filesystem- and URL-safe slug.
+    Map an item id to a filesystem-safe slug for use as a filename.
 
     Uses percent-encoding (reversible via :func:`urllib.parse.unquote`)
-    so that distinct ids never collide.
+    so that distinct ids never collide. The result contains literal
+    ``%`` characters and is NOT safe to drop into a URL directly — use
+    :func:`slug_href` for href construction.
     """
     return quote(item_id, safe="")
+
+
+def slug_href(item_id: str) -> str:
+    """
+    URL-encoded slug for href attributes.
+
+    The static-site filenames embed literal ``%`` (from :func:`slug`),
+    so any href that points at them must encode the ``%`` again. Without
+    this, a server receiving ``items/artist/The%20Streets.html`` decodes
+    the path once and looks for ``items/artist/The Streets.html`` on
+    disk, which doesn't exist.
+    """
+    return quote(slug(item_id), safe="")
 
 
 def _log_view(
@@ -151,7 +168,7 @@ def _log_view(
         "item_id": entry.item,
         "title": item.title if item else entry.item,
         "creators": _creators_view(creators, artist_by_name),
-        "href": f"items/{entry.kind}/{slug(entry.item)}.html",
+        "href": f"items/{entry.kind}/{slug_href(entry.item)}.html",
     }
 
 
@@ -187,7 +204,7 @@ def _creators_view(
     for name in creators:
         artist = artist_by_name.get(name)
         href = (
-            f"{up}items/artist/{slug(artist.id)}.html"
+            f"{up}items/artist/{slug_href(artist.id)}.html"
             if artist is not None
             else None
         )
@@ -217,7 +234,10 @@ def rank_by_score(
     )
 
 
-def _aggregate_lists(store: Store) -> list[dict[str, Any]]:
+def _aggregate_lists(
+    store: Store,
+    artist_by_name: dict[str, Item],
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for list_config in store.config.lists:
         items = store.items(list_config.kind)
@@ -243,13 +263,22 @@ def _aggregate_lists(store: Store) -> list[dict[str, Any]]:
                 "scores": scores,
                 "tiers": tiers,
                 "comparison_count": len(comparisons),
-                "rows": _ranked_rows(ranked, scores, tiers),
+                "rows": _ranked_rows(
+                    ranked,
+                    scores,
+                    tiers,
+                    artist_by_name,
+                    up="../",
+                ),
             },
         )
     return out
 
 
-def _aggregate_wants(store: Store) -> list[dict[str, Any]]:
+def _aggregate_wants(
+    store: Store,
+    artist_by_name: dict[str, Item],
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for kind in sorted({lst.kind for lst in store.config.lists}):
         wants = store.wants(kind)
@@ -264,7 +293,13 @@ def _aggregate_wants(store: Store) -> list[dict[str, Any]]:
                 "ranked": ranked,
                 "scores": scores,
                 "comparison_count": len(comparisons),
-                "rows": _ranked_rows(ranked, scores, tiers={}),
+                "rows": _ranked_rows(
+                    ranked,
+                    scores,
+                    {},
+                    artist_by_name,
+                    up="",
+                ),
             },
         )
     return out
@@ -274,6 +309,9 @@ def _ranked_rows(
     ranked: list[Item],
     scores: dict[str, Score],
     tiers: dict[str, str],
+    artist_by_name: dict[str, Item],
+    *,
+    up: str,
 ) -> list[dict[str, Any]]:
     """
     Per-row view data: rank, score, tier, score-bar geometry, tier-break flag.
@@ -292,6 +330,11 @@ def _ranked_rows(
             {
                 "rank": i,
                 "item": item,
+                "creators": _creators_view(
+                    item.creators,
+                    artist_by_name,
+                    up=up,
+                ),
                 "score": score,
                 "tier": tier,
                 "bar_pct": score.mean / scale * 100.0,

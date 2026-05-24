@@ -10,7 +10,7 @@ from great.models import (
     ListConfig,
     LogEntry,
 )
-from great.render import build_site, slug
+from great.render import build_site, slug, slug_href
 from great.store import Store
 
 SAMPLE_DATA = Path(__file__).parents[2] / "examples" / "sample-data"
@@ -70,6 +70,16 @@ def test_slug_percent_encodes_unsafe_chars():
 def test_slug_avoids_collisions():
     assert slug("a:b") != slug("a_b")
     assert slug("a/b") != slug("a-b")
+
+
+def test_slug_href_double_encodes_so_url_resolves_to_filename():
+    # The filename literally contains '%', so the href must encode it
+    # again — when a static server URL-decodes the request path once,
+    # it has to land back on the on-disk name.
+    from urllib.parse import unquote  # noqa: PLC0415
+
+    for raw in ["The Streets", "spotify:track:abc/def", "Don't"]:
+        assert unquote(slug_href(raw)) == slug(raw)
 
 
 def test_build_creates_expected_files(populated, tmp_path):
@@ -268,6 +278,68 @@ def test_appears_on_excludes_non_music_items(tmp_path):
     page = (out / "items" / "artist" / "TLC.html").read_text()
     assert "Album" in page
     assert "Movie" not in page
+
+
+def test_artist_with_space_in_id_is_reachable(tmp_path):
+    # Regression: an artist named "The Streets" produces a file at
+    # "The%20Streets.html" (literal '%'). Hrefs pointing at it must
+    # double-encode so a server URL-decodes back to the on-disk name.
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Original Pirate Material",
+                creators=["The Streets"],
+            ),
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    # The on-disk file has a literal percent sign in its name.
+    assert (out / "items" / "artist" / "The%20Streets.html").is_file()
+    # And every href that points at it must be double-encoded.
+    artist_href = "items/artist/The%2520Streets.html"
+    assert artist_href in (out / "lists" / "albums.html").read_text()
+    assert (
+        f"../../{artist_href}"
+        in (out / "items" / "album" / "a1.html").read_text()
+    )
+
+
+def test_album_list_links_creator_to_artist_page(tmp_path):
+    # Regression: list rows used to render creators as plain text
+    # joined by commas, with no link to the artist's page.
+    config = GreatConfig(
+        lists=[
+            ListConfig(name="albums", kind="album"),
+            ListConfig(name="artists", kind="artist"),
+        ],
+    )
+    store = Store.init(tmp_path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Crazysexycool",
+                creators=["TLC"],
+            ),
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+    page = (out / "lists" / "albums.html").read_text()
+    assert '<a href="../items/artist/TLC.html">TLC</a>' in page
 
 
 def test_artist_page_hides_id_when_equal_to_title(tmp_path):
