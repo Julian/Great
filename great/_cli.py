@@ -16,6 +16,12 @@ from great.albumsgenerator import (
     revealed_counts,
     save_project,
 )
+from great.antennapod import (
+    AntennaPodError,
+    counts as antennapod_counts,
+    read_export,
+    save_export,
+)
 from great.lookup import (
     AmbiguousItemError,
     ItemNotFoundError,
@@ -97,6 +103,7 @@ PAGES_WORKFLOW = (
 
 _FRIENDLY = (
     AlbumsGeneratorError,
+    AntennaPodError,
     AmbiguousItemError,
     InsufficientItemsError,
     ItemNotFoundError,
@@ -677,3 +684,48 @@ def import_1001albums(
                 f"Saved username to great.toml "
                 f"[sources.{ALBUMSGENERATOR_SOURCE_KEY}].",
             )
+
+
+@import_app.command("antennapod")
+def import_antennapod(
+    ctx: typer.Context,
+    path: Annotated[
+        Path,
+        typer.Argument(
+            help=(
+                "Path to an AntennaPod database export "
+                "(Settings → Import/Export → Database export)."
+            ),
+        ),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be imported without writing.",
+        ),
+    ] = False,
+) -> None:
+    """
+    Parse an AntennaPod ``.db`` export and save it as a catalog source.
+
+    The transcoded subset is cached at ``sources/antennapod.json``.
+    The derived catalog (read by ranking, render, and ``great show``)
+    picks it up on the next read — kept feeds become podcast items,
+    played-or-favorited episodes become ``podcast_episode`` items
+    parented to their feed, and each played-to-completion episode
+    synthesizes a ``consumed`` diary entry.
+    """
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        data = read_export(path)
+        podcasts, episodes, completed = antennapod_counts(data)
+        verb = "Would import" if dry_run else "Imported"
+        typer.echo(
+            f"{verb} {podcasts} podcasts and {episodes} episodes "
+            f"({completed} played to completion) from {path}.",
+        )
+        if dry_run:
+            return
+        save_export(store.sources_dir, data)
+        store.compile()
