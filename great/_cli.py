@@ -184,8 +184,14 @@ def show(
             s = scores[item.id]
             suffix = f" ({item.year})" if item.year is not None else ""
             tier = f"[{tiers[item.id]}] " if item.id in tiers else ""
+            byline = (
+                typer.style(", ".join(item.creators), italic=True, dim=True)
+                + " "
+                if item.creators
+                else ""
+            )
             typer.echo(
-                f"{rank_:3d}. {tier}{item.title}{suffix}  "
+                f"{rank_:3d}. {tier}{byline}{item.title}{suffix}  "
                 f"score={s.mean:+.2f} sd={s.variance**0.5:.2f}",
             )
 

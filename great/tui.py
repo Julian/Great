@@ -10,6 +10,7 @@ cancels).
 
 from typing import ClassVar
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Footer, Header, Label, ListItem, ListView
@@ -74,7 +75,12 @@ class RankApp(App):
     @staticmethod
     def _row_label(rank: int, item: Item) -> str:
         suffix = f" ({item.year})" if item.year is not None else ""
-        return f"{rank + 1:2d}. {item.title}{suffix}"
+        byline = (
+            f"[italic dim]{escape(', '.join(item.creators))}[/] "
+            if item.creators
+            else ""
+        )
+        return f"{rank + 1:2d}. {byline}{escape(item.title)}{suffix}"
 
     @property
     def _list(self) -> ListView:
