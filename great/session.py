@@ -16,7 +16,6 @@ import random
 import textwrap
 
 from great.models import Comparison, Item, ItemKind
-from great.ranking import MIN_K, infer, select_cluster
 from great.store import Store, items_file, want_file
 
 RANDOM_SEED_EVERY = 5
@@ -118,6 +117,10 @@ def run_rank_loop(
     than :data:`great.ranking.MIN_K` items. Returns the number of
     comparisons appended to the store.
     """
+    # Deferred: great.ranking pulls in scipy/numpy, and keeping this
+    # module cheap to import lets `great --version` etc. stay snappy.
+    from great.ranking import MIN_K, infer, select_cluster  # noqa: PLC0415
+
     if len(scope.items) < MIN_K:
         raise InsufficientItemsError(
             f"Need at least {MIN_K} items to rank {scope.label}, "

@@ -1,17 +1,25 @@
 """Static-site renderer for a Great data repo."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from importlib.resources import as_file, files
 from itertools import groupby
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
-import jinja2
-
-from great.models import Item, ItemKind, LogEntry
-from great.ranking import Score, infer, rescale_to_quantiles
 from great.store import MUSIC_KINDS, Store
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import jinja2
+
+    from great.models import Item, ItemKind, LogEntry
+    from great.ranking import Score
+
+# jinja2 and great.ranking (→ scipy/numpy) are imported inside the
+# functions below so that importing this module is cheap.
 
 TIER_LETTERS = ("D", "C", "B", "A", "S")
 N_QUANTILES = len(TIER_LETTERS)
@@ -24,6 +32,8 @@ def tier_label(quantile: int) -> str:
 
 def build_site(store: Store, out: Path) -> None:
     """Render the public site for ``store`` into ``out``."""
+    import jinja2  # noqa: PLC0415
+
     out.mkdir(parents=True, exist_ok=True)
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("great", "templates"),
@@ -245,6 +255,8 @@ def _aggregate_lists(
     store: Store,
     artist_by_name: dict[str, Item],
 ) -> list[dict[str, Any]]:
+    from great.ranking import infer, rescale_to_quantiles  # noqa: PLC0415
+
     out: list[dict[str, Any]] = []
     for list_config in store.config.lists:
         items = store.items(list_config.kind)
@@ -286,6 +298,8 @@ def _aggregate_wants(
     store: Store,
     artist_by_name: dict[str, Item],
 ) -> list[dict[str, Any]]:
+    from great.ranking import infer  # noqa: PLC0415
+
     out: list[dict[str, Any]] = []
     for kind in sorted({lst.kind for lst in store.config.lists}):
         wants = store.wants(kind)

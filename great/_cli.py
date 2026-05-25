@@ -39,7 +39,6 @@ from great.models import (
     LogEntry,
     LogStatus,
 )
-from great.ranking import MIN_K, infer, rescale_to_quantiles
 from great.render import N_QUANTILES, build_site, rank_by_score, tier_label
 from great.session import (
     EXAMPLE_ITEM_BLOCK,
@@ -55,7 +54,11 @@ from great.store import (
     StoreError,
     StoreNotFoundError,
 )
-from great.tui import run_rank_session
+
+# great.tui (textual), great.albumsgenerator (httpx), and great.antennapod
+# are imported lazily inside the commands that need them — the chain
+# through great.ranking (→ scipy/numpy) is already deferred inside
+# great.session and great.render, so this module stays cheap to import.
 
 ITEM_KINDS = ", ".join(get_args(ItemKind))
 
@@ -94,19 +97,10 @@ def _example_items_toml(kind: ItemKind) -> str:
     return header + body + commented
 
 
-PAGES_WORKFLOW = (
-    files("great._data")
-    .joinpath("pages_workflow.yml")
-    .read_text(
-        encoding="utf-8",
-    )
-)
-
-
 _FRIENDLY = (
     AlbumsGeneratorError,
-    AntennaPodError,
     AmbiguousItemError,
+    AntennaPodError,
     InsufficientItemsError,
     ItemNotFoundError,
     ListNotFoundError,
@@ -191,6 +185,8 @@ def show(
 ) -> None:
     """Print the inferred ranking for a list (or for --want <kind>)."""
     with _friendly_errors():
+        from great.ranking import infer, rescale_to_quantiles  # noqa: PLC0415
+
         store = Store.find(ctx.obj)
         scope = _scope_for(store, target, want=want)
         scores = infer(scope.comparisons, scope.items)
@@ -327,6 +323,9 @@ def add(
     the newly-added items until they're well-separated from the rest.
     """
     with _friendly_errors():
+        from great.ranking import MIN_K  # noqa: PLC0415
+        from great.tui import run_rank_session  # noqa: PLC0415
+
         store = Store.find(ctx.obj)
         result = add_items(
             store,
@@ -375,6 +374,8 @@ def rank(
 ) -> None:
     """Run an interactive ranking session in the Textual TUI."""
     with _friendly_errors():
+        from great.tui import run_rank_session  # noqa: PLC0415
+
         store = Store.find(ctx.obj)
         run_rank_loop(
             _scope_for(store, target, want=want),
@@ -633,7 +634,11 @@ def init(
     if with_pages:
         workflow = path / ".github" / "workflows" / "build.yml"
         workflow.parent.mkdir(parents=True, exist_ok=True)
-        workflow.write_text(PAGES_WORKFLOW)
+        workflow.write_text(
+            files("great._data")
+            .joinpath("pages_workflow.yml")
+            .read_text(encoding="utf-8"),
+        )
     typer.echo(f"Initialized data repo at {path.resolve()}")
     names = ", ".join(lst.name for lst in lists)
     typer.echo(f"Lists: {names}")

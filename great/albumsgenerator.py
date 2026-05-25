@@ -11,16 +11,23 @@ the catalog compiler picks it up. :func:`provider_items` and
 re-importing is just a cache refresh.
 """
 
-from collections.abc import Iterator
+from __future__ import annotations
+
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
 import json
 
-import httpx
-
 from great.models import Item, LogEntry
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
+    import httpx
+
+# httpx is imported inside fetch_project so that just touching this
+# module (e.g. to catch AlbumsGeneratorError) is cheap.
 
 API_URL = "https://1001albumsgenerator.com/api/v1/projects/{username}"
 SOURCE_KEY = "albumsgenerator"
@@ -48,6 +55,8 @@ def fetch_project(
     rather than a traceback. A 404 specifically is surfaced as
     :exc:`ProjectNotFoundError`.
     """
+    import httpx  # noqa: PLC0415
+
     url = API_URL.format(username=username)
     try:
         if client is None:
