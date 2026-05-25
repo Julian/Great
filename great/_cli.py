@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Any, get_args
@@ -141,6 +142,12 @@ def main() -> None:
     app()
 
 
+def _show_version(value: bool) -> None:
+    if value:
+        typer.echo(f"great {version('great')}")
+        raise typer.Exit
+
+
 @app.callback()
 def _root(
     ctx: typer.Context,
@@ -151,6 +158,15 @@ def _root(
             help="Path to the data repo (defaults to walking up from cwd).",
         ),
     ] = None,
+    _version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_show_version,
+            is_eager=True,
+            help="Show the installed version and exit.",
+        ),
+    ] = False,
 ) -> None:
     """Track and rank personal media via pairwise/k-way comparison."""
     ctx.obj = root
