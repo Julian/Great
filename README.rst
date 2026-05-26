@@ -86,6 +86,14 @@ CLI
 ``great unwant <item> [--kind KIND]``
     Remove from the kind's want queue.
 
+``great import spotify <path>``
+    Import a Spotify Extended Streaming History folder (the unzipped
+    privacy-portal export, with ``Streaming_History_Audio_*.json``
+    inside). Each unique track becomes a ``song`` item, each unique
+    album becomes an ``album`` item, and every (track, day) the user
+    actually completed (``trackdone`` or ≥ 30s played) synthesizes a
+    ``consumed`` diary entry.
+
 ``great build [--out dist/]``
     Render the static site.
 

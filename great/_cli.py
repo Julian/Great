@@ -47,6 +47,12 @@ from great.session import (
     RankingScope,
     run_rank_loop,
 )
+from great.spotify import (
+    SpotifyError,
+    counts as spotify_counts,
+    read_export as spotify_read_export,
+    save_export as spotify_save_export,
+)
 from great.store import (
     ListNotFoundError,
     Store,
@@ -103,6 +109,7 @@ _FRIENDLY = (
     InsufficientItemsError,
     ItemNotFoundError,
     ListNotFoundError,
+    SpotifyError,
     StoreError,
     StoreNotFoundError,
 )
@@ -941,4 +948,49 @@ def import_antennapod(
         if dry_run:
             return
         save_export(store.sources_dir, data)
+        store.compile()
+
+
+@import_app.command("spotify")
+def import_spotify(
+    ctx: typer.Context,
+    path: Annotated[
+        Path,
+        typer.Argument(
+            help=(
+                "Path to a Spotify Extended Streaming History folder "
+                "(unzipped, containing Streaming_History_Audio_*.json)."
+            ),
+        ),
+    ],
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show what would be imported without writing.",
+        ),
+    ] = False,
+) -> None:
+    """
+    Parse a Spotify streaming-history folder and save it as a catalog source.
+
+    The deduplicated subset is cached at ``sources/spotify.json``. The
+    derived catalog (read by ranking, render, and ``great show``) picks
+    it up on the next read — each unique track becomes a song item, each
+    unique (artist, album) pair becomes an album item, and every
+    (track, day) the user actually completed synthesizes a ``consumed``
+    diary entry. Re-importing a fresh export overwrites the cache.
+    """
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        data = spotify_read_export(path)
+        tracks, albums, completions = spotify_counts(data)
+        verb = "Would import" if dry_run else "Imported"
+        typer.echo(
+            f"{verb} {tracks} tracks and {albums} albums "
+            f"({completions} completed listening days) from {path}.",
+        )
+        if dry_run:
+            return
+        spotify_save_export(store.sources_dir, data)
         store.compile()

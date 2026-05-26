@@ -75,9 +75,9 @@ def _providers() -> tuple[Any, ...]:
     Imported lazily to avoid a cycle (providers can depend on
     :mod:`great.models` but not :mod:`great.store`).
     """
-    from great import albumsgenerator, antennapod  # noqa: PLC0415
+    from great import albumsgenerator, antennapod, spotify  # noqa: PLC0415
 
-    return (albumsgenerator, antennapod)
+    return (albumsgenerator, antennapod, spotify)
 
 
 class StoreError(Exception):

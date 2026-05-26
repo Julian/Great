@@ -46,6 +46,7 @@ def _heavy_imports_after(module: str) -> frozenset[str]:
         "great.render",
         "great.albumsgenerator",
         "great.antennapod",
+        "great.spotify",
     ],
 )
 def test_module_import_stays_lightweight(module):
