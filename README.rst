@@ -32,13 +32,13 @@ Bootstrap a data repo and try the loop locally:
 .. code-block:: sh
 
     mkdir my-media && cd my-media
-    great init                          # seeds one list per kind
-    great want "Severance" --kind tv    # add to the (per-kind) want queue
-    # Edit items/movies.toml to add some watched items, then:
-    great rank movies                   # rank what you've watched
-    great rank tv --want                # rank what you want to watch next
-    great consumed "Severance"          # promotes the wanted item to the catalog
-    great build                         # render → dist/
+    great init                                       # seeds one list per kind
+    great want "Severance" --kind tv                 # queue what you haven't watched
+    great consumed "The Godfather" --kind movie      # catalog + diary + focused rank
+    great consumed "Severance"                       # promotes the wanted item in
+    great rank movies                                # broader ranking pass when you want
+    great rank tv --want                             # rank watch-next priorities
+    great build                                      # render → dist/
 
 A working sample lives in ``examples/sample-data/``.
 ``great init`` (default ``--with-pages``) drops a GitHub Actions workflow that builds the site and deploys to Pages on every push.
@@ -60,11 +60,25 @@ CLI
 ``great show <list>`` / ``great show <kind> --want``
     Print the inferred ranking, favorites or want.
 
-``great log <item> [--status ...] [--notes ...] [--at DATE]``
-    Append a diary entry. Consuming a wanted item promotes it to the catalog.
+``great consumed <item> [--kind KIND] [--at DATE] [--notes ...] [--no-log] [--no-rank]``
+    Mark an item as consumed. Catalogs it if new (``--kind`` required
+    for brand-new titles), promotes it from the want queue if wanted,
+    writes a diary entry, and runs a focused ranking session for
+    newly-cataloged items. ``--no-log`` skips the diary;
+    ``--no-rank`` skips ranking. Already-cataloged items get a
+    diary row only — use ``great rank`` to re-rank them.
 
-``great consumed <item> [--at DATE]``
-    Alias for ``log --status consumed``.
+``great started <item> [--kind KIND] [--at DATE] [--notes ...]``
+    Log that you've started an item; catalog it if new. Never promotes
+    from the want queue or ranks (no opinion formed yet).
+
+``great abandoned <item> [--kind KIND] [--at DATE] [--notes ...]``
+    Log that you've abandoned an item; catalog it if new. Never
+    promotes or ranks.
+
+``great log <item> [--status ...] [--notes ...] [--at DATE]``
+    Low-level diary append for items already in the catalog or want
+    queue. Useful for backfilling; never auto-creates, never ranks.
 
 ``great want <title> --kind KIND [--year YEAR] [--id ID]``
     Add a free-form title to the kind's want queue (one queue per kind).

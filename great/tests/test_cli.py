@@ -97,44 +97,165 @@ def test_rank_command_too_few_items_exits_nonzero(
     assert "[[items]]" in result.output
 
 
-def test_add_command_appends_and_skips_ranking_when_too_few(tmp_path):
+def test_consumed_auto_creates_new_item(tmp_path):
     config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
     Store.init(tmp_path, config)
     result = CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "add", "movies", "The Godfather"],
+        [
+            "--root",
+            str(tmp_path),
+            "consumed",
+            "The Godfather",
+            "--kind",
+            "movie",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert "Added to items/movies: The Godfather" in result.output
-    assert "Skipping ranking session" in result.output
+    assert "Logged consumed: The Godfather" in result.output
+    assert "Skipping ranking session" in result.output  # only 1 item, < MIN_K
     [item] = Store.find(tmp_path).items("movie")
     assert item.title == "The Godfather"
+    [entry] = Store.find(tmp_path).log()
+    assert entry.item == "The Godfather"
+    assert entry.status == "consumed"
 
 
-def test_add_command_skips_existing_titles(tmp_path):
+def test_consumed_requires_kind_for_unknown_title(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "consumed", "Some Brand New Thing"],
+    )
+    assert result.exit_code == 1
+    assert "--kind" in result.output
+
+
+def test_consumed_no_log_skips_diary(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "consumed",
+            "The Godfather",
+            "--kind",
+            "movie",
+            "--no-log",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Added to items/movies: The Godfather" in result.output
+    assert "Logged" not in result.output
+    assert Store.find(tmp_path).log() == []
+
+
+def test_consumed_existing_item_does_not_rank(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    store = Store.init(tmp_path, config)
+    # Two items already — well above MIN_K, so if ranking ran it would
+    # try to spawn the TUI. Existing items should never trigger that.
+    store.write_items(
+        "movie",
+        [
+            Item(id="tt1", kind="movie", title="Anora"),
+            Item(id="tt2", kind="movie", title="Casablanca"),
+        ],
+    )
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "consumed", "Anora"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Logged consumed: Anora" in result.output
+    assert "Added to items" not in result.output
+    assert "Skipping ranking session" not in result.output
+
+
+def test_consumed_no_rank_skips_ranking_for_new(tmp_path):
     config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
     store = Store.init(tmp_path, config)
     store.write_items(
         "movie",
-        [Item(id="Anora", kind="movie", title="Anora")],
+        [
+            Item(id="tt1", kind="movie", title="Anora"),
+            Item(id="tt2", kind="movie", title="Casablanca"),
+        ],
     )
     result = CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "add", "movies", "Anora"],
+        [
+            "--root",
+            str(tmp_path),
+            "consumed",
+            "Goodfellas",
+            "--kind",
+            "movie",
+            "--no-rank",
+        ],
     )
     assert result.exit_code == 0, result.output
-    assert "Already in items/movies: Anora" in result.output
-    assert len(Store.find(tmp_path).items("movie")) == 1
+    assert "Added to items/movies: Goodfellas" in result.output
+    assert "Skipping ranking session" not in result.output
+    titles = {i.title for i in Store.find(tmp_path).items("movie")}
+    assert "Goodfellas" in titles
 
 
-def test_add_command_unknown_list_friendly_error(tmp_path):
-    Store.init(tmp_path, GreatConfig())
+def test_started_auto_creates_and_skips_rank_and_promote(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="tv", kind="tv")])
+    store = Store.init(tmp_path, config)
+    store.add_want(Item(id="Severance", kind="tv", title="Severance"))
     result = CliRunner().invoke(
         app,
-        ["--root", str(tmp_path), "add", "movies", "Anora"],
+        ["--root", str(tmp_path), "started", "Severance"],
     )
-    assert result.exit_code == 1
-    assert "Traceback" not in result.output
+    assert result.exit_code == 0, result.output
+    assert "Logged started: Severance" in result.output
+    assert "Skipping ranking session" not in result.output  # never ranks
+    assert len(Store.find(tmp_path).wants("tv")) == 1  # not promoted
+
+
+def test_started_creates_new_item_with_kind(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="tv", kind="tv")])
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "started", "Andor", "--kind", "tv"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Added to items/tv: Andor" in result.output
+    assert "Logged started: Andor" in result.output
+    [item] = Store.find(tmp_path).items("tv")
+    assert item.title == "Andor"
+
+
+def test_abandoned_logs_without_promoting(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="tv", kind="tv")])
+    store = Store.init(tmp_path, config)
+    store.add_want(Item(id="Severance", kind="tv", title="Severance"))
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "abandoned", "Severance"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Logged abandoned: Severance" in result.output
+    assert len(Store.find(tmp_path).wants("tv")) == 1
+
+
+def test_abandoned_creates_new_item_with_kind(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="tv", kind="tv")])
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "abandoned", "Andor", "--kind", "tv"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Added to items/tv: Andor" in result.output
+    assert "Logged abandoned: Andor" in result.output
 
 
 def test_init_creates_layout(tmp_path):
@@ -218,7 +339,7 @@ def test_init_with_lists_points_at_items_files(tmp_path):
     assert "items/" in result.output
     assert "favorites" in result.output
     assert "watchlist" in result.output
-    assert "great rank" in result.output
+    assert "great consumed" in result.output
     movie_items = (target / "items" / "movies.toml").read_text()
     tv_items = (target / "items" / "tv.toml").read_text()
     assert "# [[items]]" in movie_items

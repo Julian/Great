@@ -5,7 +5,6 @@ from great.session import (
     SKIP,
     InsufficientItemsError,
     RankingScope,
-    add_items,
     run_rank_loop,
 )
 from great.store import Store
@@ -213,80 +212,3 @@ def test_run_rank_loop_refuses_too_few_items(tmp_path, make_movies_store):
             session=lambda _cluster: None,
             max_iters=1,
         )
-
-
-def test_add_items_runs_focused_session(tmp_path, make_movies_store):
-    make_movies_store(tmp_path)
-    store = Store.find(tmp_path)
-
-    seen: list[list[str]] = []
-
-    def session(cluster):
-        seen.append([item.id for item in cluster])
-        return [[i] for i in range(len(cluster))]
-
-    result = add_items(
-        store,
-        "movies",
-        ["Goodfellas"],
-        session=session,
-        max_iters=100,
-    )
-
-    assert result.appended > 0
-    assert not result.skipped_ranking
-    assert [(o.item.title, o.new) for o in result.outcomes] == [
-        ("Goodfellas", True),
-    ]
-    titles = {i.title for i in store.items("movie")}
-    assert titles == {"Anora", "Casablanca", "Goodfellas"}
-    assert seen
-    for cluster in seen:
-        assert "Goodfellas" in cluster
-
-
-def test_add_items_skips_ranking_when_below_min_k(tmp_path):
-    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
-    store = Store.init(tmp_path, config)
-
-    def session(_cluster):
-        raise AssertionError("session should not run below MIN_K")
-
-    result = add_items(
-        store,
-        "movies",
-        ["The Godfather"],
-        session=session,
-    )
-
-    assert result.appended == 0
-    assert result.skipped_ranking
-    [outcome] = result.outcomes
-    assert outcome.new
-    assert outcome.item.title == "The Godfather"
-
-
-def test_add_items_skips_ranking_when_all_duplicates(tmp_path):
-    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
-    store = Store.init(tmp_path, config)
-    store.write_items(
-        "movie",
-        [
-            Item(id="Anora", kind="movie", title="Anora"),
-            Item(id="Casablanca", kind="movie", title="Casablanca"),
-        ],
-    )
-
-    def session(_cluster):
-        raise AssertionError("session should not run when nothing was added")
-
-    result = add_items(
-        store,
-        "movies",
-        ["Anora", "Casablanca"],
-        session=session,
-    )
-
-    assert result.appended == 0
-    assert not result.skipped_ranking
-    assert all(not o.new for o in result.outcomes)

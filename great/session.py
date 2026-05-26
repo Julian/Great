@@ -108,10 +108,10 @@ def run_rank_loop(
     unlikely to be handed back the same cluster.
 
     ``focus_ids`` restricts cluster seeding to a subset of item ids
-    (e.g. items just added via ``great add``): the loop keeps picking
-    seeds from that set, never engages the random-seed jitter, and
-    naturally ends as soon as every focus item is well-separated from
-    the rest (``select_cluster`` returns a singleton).
+    (e.g. an item just added via ``great consumed``): the loop keeps
+    picking seeds from that set, never engages the random-seed jitter,
+    and naturally ends as soon as every focus item is well-separated
+    from the rest (``select_cluster`` returns a singleton).
 
     Raises :class:`InsufficientItemsError` when the scope has fewer
     than :data:`great.ranking.MIN_K` items. Returns the number of
@@ -172,83 +172,3 @@ def run_rank_loop(
         appended += 1
 
     return appended
-
-
-@dataclass
-class AddOutcome:
-    """One title's result from :func:`add_items`."""
-
-    item: Item
-    new: bool  # True if newly added, False if already present
-
-
-@dataclass
-class AddItemsResult:
-    """Aggregate outcome of an :func:`add_items` call."""
-
-    kind: ItemKind
-    outcomes: list[AddOutcome]
-    appended: int
-    skipped_ranking: bool  # True iff items were added but MIN_K was not met
-
-
-def add_items(
-    store: Store,
-    list_name: str,
-    titles: list[str],
-    *,
-    session: Session,
-    max_iters: int = RANK_MAX_ITERS_DEFAULT,
-) -> AddItemsResult:
-    """
-    Append ``titles`` to ``list_name``'s catalog and rank them in.
-
-    For each title an :class:`Item` is built (id defaults to the
-    title) and appended via :meth:`Store.add_item`; duplicates are
-    recorded in the result's ``outcomes`` with ``new=False``. If
-    anything was newly added, the new ids drive a focused ranking
-    session (``focus_ids``). If the catalog still has too few items
-    to rank, the :class:`InsufficientItemsError` is caught and
-    surfaced as ``skipped_ranking=True`` in the result.
-
-    Returns an :class:`AddItemsResult` describing each title's
-    outcome and how the ranking attempt resolved.
-    """
-    list_config = store.list_config(list_name)
-    kind = list_config.kind
-    outcomes: list[AddOutcome] = []
-    new_ids: list[str] = []
-    for title in titles:
-        item = Item.from_dict({"title": title}, kind=kind)
-        new = store.add_item(item)
-        outcomes.append(AddOutcome(item=item, new=new))
-        if new:
-            new_ids.append(item.id)
-    if not new_ids:
-        return AddItemsResult(
-            kind=kind,
-            outcomes=outcomes,
-            appended=0,
-            skipped_ranking=False,
-        )
-    scope = RankingScope.for_list(store, list_name)
-    try:
-        appended = run_rank_loop(
-            scope,
-            session=session,
-            max_iters=max_iters,
-            focus_ids=new_ids,
-        )
-    except InsufficientItemsError:
-        return AddItemsResult(
-            kind=kind,
-            outcomes=outcomes,
-            appended=0,
-            skipped_ranking=True,
-        )
-    return AddItemsResult(
-        kind=kind,
-        outcomes=outcomes,
-        appended=appended,
-        skipped_ranking=False,
-    )

@@ -287,7 +287,13 @@ def test_consumed_promotes_want_to_catalog(store):
 
     result = CliRunner().invoke(
         app,
-        ["--root", str(store.root), "consumed", "Brand New Cherry Flavor"],
+        [
+            "--root",
+            str(store.root),
+            "consumed",
+            "Brand New Cherry Flavor",
+            "--no-rank",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert "promoted from want queue" in result.output.lower()
@@ -296,7 +302,8 @@ def test_consumed_promotes_want_to_catalog(store):
     assert "Brand New Cherry Flavor" in titles
 
 
-def test_started_status_does_not_promote_want(store):
+def test_log_never_promotes_from_want_queue(store):
+    """``log`` is a pure diary appender — promotion is ``consumed``'s job."""
     CliRunner().invoke(
         app,
         [
@@ -308,19 +315,20 @@ def test_started_status_does_not_promote_want(store):
             "tv",
         ],
     )
-    result = CliRunner().invoke(
-        app,
-        [
-            "--root",
-            str(store.root),
-            "log",
-            "Brand New Cherry Flavor",
-            "--status",
-            "started",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert "promoted" not in result.output.lower()
+    for status in ("consumed", "started", "abandoned"):
+        result = CliRunner().invoke(
+            app,
+            [
+                "--root",
+                str(store.root),
+                "log",
+                "Brand New Cherry Flavor",
+                "--status",
+                status,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "promoted" not in result.output.lower()
     assert len(store.wants("tv")) == 1
 
 

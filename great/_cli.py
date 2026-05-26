@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from importlib.metadata import version
 from importlib.resources import files
 from pathlib import Path
-from typing import Annotated, Any, get_args
+from typing import Annotated, Any, Literal, get_args
 import contextlib
 
 import typer
@@ -45,7 +45,6 @@ from great.session import (
     RANK_MAX_ITERS_DEFAULT,
     InsufficientItemsError,
     RankingScope,
-    add_items,
     run_rank_loop,
 )
 from great.store import (
@@ -296,59 +295,6 @@ def diary(
 
 
 @app.command()
-def add(
-    ctx: typer.Context,
-    list_name: Annotated[
-        str,
-        typer.Argument(help="List name (favorites) to add the items to."),
-    ],
-    titles: Annotated[
-        list[str],
-        typer.Argument(help="One or more titles to add to the list."),
-    ],
-    max_iters: Annotated[
-        int,
-        typer.Option(
-            "--max-iters",
-            help="Stop after this many comparisons in one session.",
-        ),
-    ] = RANK_MAX_ITERS_DEFAULT,
-) -> None:
-    """
-    Add items to a favorites list, then place them via ranking.
-
-    Each title is appended to ``items/<kind>.toml`` (with an id
-    defaulting to the title); duplicates are skipped with a note.
-    After adding, runs a focused ranking session that keeps seeding on
-    the newly-added items until they're well-separated from the rest.
-    """
-    with _friendly_errors():
-        from great.ranking import MIN_K  # noqa: PLC0415
-        from great.tui import run_rank_session  # noqa: PLC0415
-
-        store = Store.find(ctx.obj)
-        result = add_items(
-            store,
-            list_name,
-            titles,
-            session=run_rank_session,
-            max_iters=max_iters,
-        )
-        for outcome in result.outcomes:
-            verb = "Added to" if outcome.new else "Already in"
-            typer.echo(
-                f"{verb} items/{KIND_PLURAL[result.kind]}: "
-                f"{outcome.item.title}",
-            )
-        if result.skipped_ranking:
-            typer.echo(
-                f"Need at least {MIN_K} items to rank {list_name!r}, "
-                f"found {len(store.items(result.kind))}. "
-                "Skipping ranking session.",
-            )
-
-
-@app.command()
 def rank(
     ctx: typer.Context,
     target: Annotated[
@@ -391,33 +337,116 @@ def _resolve_ts(at: datetime | None) -> datetime:
     return at if at.tzinfo else at.replace(tzinfo=UTC)
 
 
-def _record_log_entry(
+_AddState = Literal["created", "promoted", "existing"]
+
+
+def _ensure_in_catalog(
     store: Store,
     query: str,
+    *,
+    kind: ItemKind | None,
+    auto_promote: bool,
+) -> tuple[Item, _AddState]:
+    """
+    Resolve ``query`` to a catalog item, creating or promoting as needed.
+
+    Searches the consumed catalog and the want queue. If the item is
+    only on the want queue and ``auto_promote`` is set, it's promoted
+    in. If nothing matches and ``kind`` is supplied, a new bare item
+    (id defaults to ``query``) is appended to ``items/<kind>.toml``.
+    Without ``kind``, raises :class:`ItemNotFoundError` rather than
+    silently picking one.
+    """
+    try:
+        resolved = resolve_item(store, query, kind=kind, search_wants=True)
+    except ItemNotFoundError:
+        if kind is None:
+            raise ItemNotFoundError(
+                f"no item matching {query!r}. "
+                "Pass --kind to add it as a new item.",
+            ) from None
+        new_item = Item.from_dict({"title": query}, kind=kind)
+        store.add_item(new_item)
+        return new_item, "created"
+    if (
+        auto_promote
+        and store.promote_want(resolved.kind, resolved.id) is not None
+    ):
+        return resolved, "promoted"
+    return resolved, "existing"
+
+
+def _append_diary_entry(
+    store: Store,
+    item: Item,
     *,
     status: LogStatus,
     notes: str | None,
     at: datetime | None,
-    kind: ItemKind | None,
 ) -> None:
-    """Resolve ``query``, promote-on-consume, and append the diary entry."""
-    resolved = resolve_item(store, query, kind=kind, search_wants=True)
-    promoted = (
-        status == "consumed"
-        and store.promote_want(resolved.kind, resolved.id) is not None
-    )
+    """Append a single diary row for ``item`` and echo a one-line summary."""
     store.append_log(
         LogEntry(
             ts=_resolve_ts(at),
-            kind=resolved.kind,
-            item=resolved.id,
+            kind=item.kind,
+            item=item.id,
             status=status,
             notes=notes,
         ),
     )
-    typer.echo(f"Logged {status}: {resolved.title}")
-    if promoted:
-        typer.echo("  (promoted from want queue)")
+    typer.echo(f"Logged {status}: {item.title}")
+
+
+def _echo_catalog_change(item: Item, state: _AddState) -> None:
+    """Echo a one-liner describing how the catalog moved (if at all)."""
+    if state == "created":
+        typer.echo(f"Added to items/{KIND_PLURAL[item.kind]}: {item.title}")
+    elif state == "promoted":
+        typer.echo(
+            f"Promoted from want queue to items/{KIND_PLURAL[item.kind]}: "
+            f"{item.title}",
+        )
+
+
+def _focused_rank(
+    store: Store,
+    item: Item,
+    *,
+    max_iters: int,
+) -> None:
+    """
+    Run a focused ranking session for a newly-added ``item``.
+
+    Picks the first configured list of the item's kind. If no list
+    matches the kind, or the list has too few items to rank, echoes a
+    short note instead of raising.
+    """
+    from great.ranking import MIN_K  # noqa: PLC0415
+    from great.tui import run_rank_session  # noqa: PLC0415
+
+    list_config = next(
+        (lst for lst in store.config.lists if lst.kind == item.kind),
+        None,
+    )
+    if list_config is None:
+        typer.echo(
+            f"No list of kind {item.kind!r} configured; "
+            "skipping ranking session.",
+        )
+        return
+    try:
+        run_rank_loop(
+            RankingScope.for_list(store, list_config.name),
+            session=run_rank_session,
+            max_iters=max_iters,
+            focus_ids=[item.id],
+        )
+    except InsufficientItemsError:
+        typer.echo(
+            f"Need at least {MIN_K} items to rank {list_config.name!r}, "
+            f"found {len(store.items(item.kind))}. "
+            "Skipping ranking session.",
+        )
 
 
 @app.command(name="log")
@@ -441,19 +470,27 @@ def log_(
     ] = None,
     kind: Annotated[
         ItemKind | None,
-        typer.Option("--kind", help="Restrict lookup to a single kind."),
+        typer.Option("--kind", help="Disambiguate by kind."),
     ] = None,
 ) -> None:
-    """Append a consumption-diary entry."""
+    """
+    Append a diary entry for an existing item.
+
+    Low-level: the item must already exist (catalog or want queue);
+    nothing is auto-created, promoted, or ranked. Reach for
+    ``great consumed`` / ``started`` / ``abandoned`` for the everyday
+    "I just consumed something" flow; ``log`` is for backfilling
+    history or recording extra status events.
+    """
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        _record_log_entry(
+        resolved = resolve_item(store, item, kind=kind, search_wants=True)
+        _append_diary_entry(
             store,
-            item,
+            resolved,
             status=status,
             notes=notes,
             at=at,
-            kind=kind,
         )
 
 
@@ -474,19 +511,156 @@ def consumed(
     ] = None,
     kind: Annotated[
         ItemKind | None,
-        typer.Option("--kind", help="Restrict lookup to a single kind."),
+        typer.Option(
+            "--kind",
+            help="Item kind. Required when adding a brand-new title.",
+        ),
     ] = None,
+    no_log: Annotated[
+        bool,
+        typer.Option(
+            "--no-log",
+            help="Skip the diary entry (catalog-only).",
+        ),
+    ] = False,
+    no_rank: Annotated[
+        bool,
+        typer.Option(
+            "--no-rank",
+            help="Skip the focused ranking session for newly-added items.",
+        ),
+    ] = False,
+    max_iters: Annotated[
+        int,
+        typer.Option(
+            "--max-iters",
+            help="Stop after this many comparisons in one session.",
+        ),
+    ] = RANK_MAX_ITERS_DEFAULT,
 ) -> None:
-    """Shortcut for ``great log <item> --status consumed``."""
+    """
+    Mark an item as consumed: catalog it (if new), diary it, rank it.
+
+    Resolves the query against the catalog and want queue. A want-queue
+    match is promoted into the catalog; a brand-new title is appended
+    to ``items/<kind>.toml`` (``--kind`` required). Newly-cataloged
+    items kick off a focused ranking session; items already in the
+    catalog get a diary row only (use ``great rank`` to re-rank).
+    """
     with _friendly_errors():
         store = Store.find(ctx.obj)
-        _record_log_entry(
+        resolved, state = _ensure_in_catalog(
             store,
             item,
-            status="consumed",
+            kind=kind,
+            auto_promote=True,
+        )
+        _echo_catalog_change(resolved, state)
+        if not no_log:
+            _append_diary_entry(
+                store,
+                resolved,
+                status="consumed",
+                notes=notes,
+                at=at,
+            )
+        if state != "existing" and not no_rank:
+            _focused_rank(store, resolved, max_iters=max_iters)
+
+
+@app.command()
+def started(
+    ctx: typer.Context,
+    item: Annotated[str, typer.Argument(help="Item id or exact title.")],
+    notes: Annotated[
+        str | None,
+        typer.Option("--notes", help="Optional free-form notes."),
+    ] = None,
+    at: Annotated[
+        datetime | None,
+        typer.Option(
+            "--at",
+            help="When this happened (ISO date or datetime). Defaults to now.",
+        ),
+    ] = None,
+    kind: Annotated[
+        ItemKind | None,
+        typer.Option(
+            "--kind",
+            help="Item kind. Required when adding a brand-new title.",
+        ),
+    ] = None,
+) -> None:
+    """
+    Log that you've started an item (and catalog it if new).
+
+    Doesn't promote from the want queue (start ≠ consume) and doesn't
+    rank — you haven't formed an opinion yet. Run ``great consumed``
+    when you're done.
+    """
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        resolved, state = _ensure_in_catalog(
+            store,
+            item,
+            kind=kind,
+            auto_promote=False,
+        )
+        _echo_catalog_change(resolved, state)
+        _append_diary_entry(
+            store,
+            resolved,
+            status="started",
             notes=notes,
             at=at,
+        )
+
+
+@app.command()
+def abandoned(
+    ctx: typer.Context,
+    item: Annotated[str, typer.Argument(help="Item id or exact title.")],
+    notes: Annotated[
+        str | None,
+        typer.Option("--notes", help="Optional free-form notes."),
+    ] = None,
+    at: Annotated[
+        datetime | None,
+        typer.Option(
+            "--at",
+            help="When this happened (ISO date or datetime). Defaults to now.",
+        ),
+    ] = None,
+    kind: Annotated[
+        ItemKind | None,
+        typer.Option(
+            "--kind",
+            help="Item kind. Required when adding a brand-new title.",
+        ),
+    ] = None,
+) -> None:
+    """
+    Log that you've abandoned an item (and catalog it if new).
+
+    Doesn't promote from the want queue and doesn't rank. Use
+    ``great unwant`` separately if you also want to clear it off the
+    want queue.
+    """
+    with _friendly_errors():
+        store = Store.find(ctx.obj)
+        resolved, state = _ensure_in_catalog(
+            store,
+            item,
             kind=kind,
+            auto_promote=False,
+        )
+        _echo_catalog_change(resolved, state)
+        _append_diary_entry(
+            store,
+            resolved,
+            status="abandoned",
+            notes=notes,
+            at=at,
         )
 
 
@@ -643,7 +817,8 @@ def init(
     names = ", ".join(lst.name for lst in lists)
     typer.echo(f"Lists: {names}")
     typer.echo(
-        "Add items to items/, then `great rank <list>` to start ranking.",
+        'Add an item with `great consumed "<title>" --kind <kind>` '
+        "(or edit items/<kind>.toml directly).",
     )
 
 
