@@ -420,3 +420,185 @@ def test_writing_non_music_kind_does_not_touch_artists(music_store):
         [Item(id="tt1", kind="movie", title="Inception")],
     )
     assert music_store.items("artist") == []
+
+
+# -- Album dedup at compile time -----------------------------------------
+
+
+def test_compile_merges_albums_with_case_variant_titles(music_store):
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="a1", kind="album", title="Lemonade", creators=["Beyoncé"]
+            ),
+            Item(
+                id="a2", kind="album", title="LEMONADE", creators=["Beyoncé"]
+            ),
+        ],
+    )
+    albums = music_store.items("album")
+    assert len(albums) == 1
+
+
+def test_compile_merges_deluxe_and_remastered_variants(music_store):
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="a1",
+                kind="album",
+                title="Abbey Road",
+                creators=["The Beatles"],
+            ),
+            Item(
+                id="a2",
+                kind="album",
+                title="Abbey Road (Deluxe Edition)",
+                creators=["The Beatles"],
+            ),
+            Item(
+                id="a3",
+                kind="album",
+                title="Abbey Road [Remastered 2009]",
+                creators=["The Beatles"],
+            ),
+            Item(
+                id="a4",
+                kind="album",
+                title="Abbey Road (Anniversary Edition)",
+                creators=["The Beatles"],
+            ),
+        ],
+    )
+    albums = music_store.items("album")
+    assert len(albums) == 1
+
+
+def test_compile_does_not_merge_distinct_editions(music_store):
+    # "Live", "Demos", "Greatest Hits" name *different* releases of the
+    # same artist, not editions of the same album — they must NOT merge.
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="a1", kind="album", title="Nevermind", creators=["Nirvana"]
+            ),
+            Item(
+                id="a2",
+                kind="album",
+                title="Nevermind (Live)",
+                creators=["Nirvana"],
+            ),
+        ],
+    )
+    assert len(music_store.items("album")) == 2
+
+
+def test_compile_user_source_album_wins_over_provider(tmp_path):
+    """A user-source album beats a duplicate album from a provider cache."""
+    from great.spotify import save_export  # noqa: PLC0415
+
+    music_store = Store.init(
+        tmp_path,
+        GreatConfig(lists=[ListConfig(name="albums", kind="album")]),
+    )
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="user-album",
+                kind="album",
+                title="Lemonade",
+                creators=["Beyoncé"],
+            ),
+        ],
+    )
+    # Provider (Spotify) ships the same album under a synthetic id.
+    save_export(
+        music_store.sources_dir,
+        {
+            "tracks": [],
+            "albums": [
+                {
+                    "id": "spotify-name:beyoncé::lemonade",
+                    "title": "LEMONADE (Deluxe Edition)",
+                    "artist": "Beyoncé",
+                },
+            ],
+            "completions": [],
+        },
+    )
+    albums = music_store.items("album")
+    assert len(albums) == 1
+    # User-source row wins on both id and title.
+    assert albums[0].id == "user-album"
+    assert albums[0].title == "Lemonade"
+
+
+def test_compile_merges_external_ids_into_album_winner(music_store):
+    """Loser external_ids fold into the winner without overwriting."""
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="rich",
+                kind="album",
+                title="Lemonade",
+                creators=["Beyoncé"],
+                external_ids={"spotify": "spotify:album:real", "mb": "uuid-1"},
+            ),
+            Item(
+                id="poor",
+                kind="album",
+                title="Lemonade",
+                creators=["Beyoncé"],
+                external_ids={"discogs": "12345"},
+            ),
+        ],
+    )
+    albums = music_store.items("album")
+    assert len(albums) == 1
+    # The richer (more external_ids) wins; loser's keys fold in.
+    assert albums[0].id == "rich"
+    assert albums[0].external_ids == {
+        "spotify": "spotify:album:real",
+        "mb": "uuid-1",
+        "discogs": "12345",
+    }
+
+
+def test_compile_remaps_song_parent_id_onto_album_winner(music_store):
+    music_store.write_items(
+        "album",
+        [
+            Item(
+                id="a-real",
+                kind="album",
+                title="Lemonade",
+                creators=["Beyoncé"],
+                external_ids={"spotify": "spotify:album:real"},
+            ),
+            Item(
+                id="a-synth",
+                kind="album",
+                title="LEMONADE (Deluxe Edition)",
+                creators=["Beyoncé"],
+            ),
+        ],
+    )
+    music_store.write_items(
+        "song",
+        [
+            Item(
+                id="spotify:track:1",
+                kind="song",
+                title="Formation",
+                creators=["Beyoncé"],
+                parent_id="a-synth",
+            ),
+        ],
+    )
+    songs = music_store.items("song")
+    assert len(songs) == 1
+    assert songs[0].parent_id == "a-real"
