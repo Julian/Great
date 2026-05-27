@@ -92,9 +92,14 @@ def test_run_rank_loop_orders_cluster_by_descending_mean(
     seen: list[list[str]] = []
 
     def session(cluster):
-        seen.append([item.id for item in cluster])
+        ids = [item.id for item in cluster]
+        seen.append(ids)
         if len(seen) == 1:
-            return [[1], [0]]
+            # Rank tt2 above tt1 regardless of which order the cluster
+            # arrived in -- cold-start clusters tie-break randomly, so
+            # a fixed ``[[1], [0]]`` would assert on whichever item
+            # happened to land at index 1 that run.
+            return [[ids.index("tt2")], [ids.index("tt1")]]
         return None
 
     run_rank_loop(
