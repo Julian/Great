@@ -98,13 +98,14 @@ def build_site(store: Store, out: Path) -> None:
         in_lists = [
             {
                 "config": data["config"],
-                "rank": data["ranked"].index(item) + 1,
+                "rank": data["rank_by_id"][item.id],
                 "total": len(data["ranked"]),
                 "score": data["scores"][item.id],
                 "tier": data["tiers"].get(item.id),
             }
             for data in list_data
-            if item in data["ranked"]
+            if item.kind == data["config"].kind
+            and item.id in data["rank_by_id"]
         ]
         item_path = out / "items" / item.kind / f"{slug(item.id)}.html"
         item_path.parent.mkdir(parents=True, exist_ok=True)
@@ -282,6 +283,13 @@ def _aggregate_lists(
                 "scores": scores,
                 "tiers": tiers,
                 "comparison_count": len(comparisons),
+                # Pre-built id -> 1-based rank. The per-item-page loop in
+                # ``build_site`` looks each item up across every list; a
+                # raw ``item in data["ranked"]`` is O(N) per check (and
+                # pydantic equality compares every field), so on
+                # catalogs with tens of thousands of items the loop
+                # turned quadratic and dominated build time.
+                "rank_by_id": {item.id: i for i, item in enumerate(ranked, 1)},
                 "rows": _ranked_rows(
                     ranked,
                     scores,

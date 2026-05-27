@@ -586,3 +586,32 @@ def test_list_page_omits_tier_without_comparisons(tmp_path):
     build_site(store, out)
     html = (out / "lists" / "movies.html").read_text()
     assert "<th>Tier</th>" not in html
+
+
+def test_build_site_per_item_loop_scales_linearly(tmp_path):
+    # Regression: the per-item-page loop used to call
+    # ``data["ranked"].index(item)`` and ``item in data["ranked"]`` for
+    # every (item, list) pair. Pydantic equality made each check O(N
+    # fields), so a catalog with thousands of items spent most of build
+    # time in quadratic ``in``/``index`` scans. A few thousand songs is
+    # enough to surface the bug; the threshold is loose to stay reliable
+    # in CI but well below the pre-fix runtime at this scale.
+    import time  # noqa: PLC0415
+
+    config = GreatConfig(lists=[ListConfig(name="songs", kind="song")])
+    store = Store.init(tmp_path, config)
+    n_items = 6000
+    store.write_items(
+        "song",
+        [
+            Item(id=f"s{n:05d}", kind="song", title=f"Song {n}")
+            for n in range(n_items)
+        ],
+    )
+    out = tmp_path / "dist"
+    start = time.perf_counter()
+    build_site(store, out)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 10.0, f"build_site took {elapsed:.1f}s on {n_items} songs"
+    assert (out / "items" / "song" / "s00000.html").is_file()
+    assert (out / "items" / "song" / f"s{n_items - 1:05d}.html").is_file()
