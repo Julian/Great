@@ -615,3 +615,126 @@ def test_build_site_per_item_loop_scales_linearly(tmp_path):
     assert elapsed < 10.0, f"build_site took {elapsed:.1f}s on {n_items} songs"
     assert (out / "items" / "song" / "s00000.html").is_file()
     assert (out / "items" / "song" / f"s{n_items - 1:05d}.html").is_file()
+
+
+def test_short_list_stays_a_single_page(tmp_path, make_movies_store):
+    store = make_movies_store(tmp_path)
+    out = tmp_path / "dist"
+    build_site(store, out)
+    assert (out / "lists" / "movies.html").is_file()
+    assert not (out / "lists" / "movies").exists()
+    html = (out / "lists" / "movies.html").read_text()
+    assert "pagination" not in html
+    assert "page 1 of" not in html
+
+
+def test_long_list_splits_into_multiple_pages(tmp_path):
+    from great.render import LIST_PAGE_SIZE  # noqa: PLC0415
+
+    config = GreatConfig(lists=[ListConfig(name="songs", kind="song")])
+    store = Store.init(tmp_path, config)
+    n_items = LIST_PAGE_SIZE * 2 + 50
+    store.write_items(
+        "song",
+        [
+            Item(id=f"s{n:05d}", kind="song", title=f"Song {n:05d}")
+            for n in range(n_items)
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+
+    page1 = out / "lists" / "songs.html"
+    page2 = out / "lists" / "songs" / "2.html"
+    page3 = out / "lists" / "songs" / "3.html"
+    assert page1.is_file()
+    assert page2.is_file()
+    assert page3.is_file()
+    assert not (out / "lists" / "songs" / "4.html").exists()
+
+    p1 = page1.read_text()
+    assert "page 1 of 3" in p1
+    assert 'href="songs/2.html"' in p1
+    # Item links on page 1 are one level up.
+    assert "../items/song/s00000.html" in p1
+    # Last id on page 1 (zero-indexed item LIST_PAGE_SIZE - 1).
+    last_p1 = f"s{LIST_PAGE_SIZE - 1:05d}"
+    assert last_p1 in p1
+
+    p2 = page2.read_text()
+    assert "page 2 of 3" in p2
+    assert 'href="../songs.html"' in p2
+    assert 'href="3.html"' in p2
+    # Item links from page 2 must double-up to escape the songs/ subdir.
+    first_p2 = f"s{LIST_PAGE_SIZE:05d}"
+    assert f"../../items/song/{first_p2}.html" in p2
+
+
+def test_pagination_links_show_window_around_current_with_ellipses(tmp_path):
+    # A many-page list should not dump every page number into the
+    # control: the helper shows page 1, the last page, and a two-page
+    # window on each side of the current page, separated by ellipses.
+    from great.render import LIST_PAGE_SIZE  # noqa: PLC0415
+
+    config = GreatConfig(lists=[ListConfig(name="songs", kind="song")])
+    store = Store.init(tmp_path, config)
+    total_pages = 20
+    store.write_items(
+        "song",
+        [
+            Item(id=f"s{n:05d}", kind="song", title=f"Song {n:05d}")
+            for n in range(LIST_PAGE_SIZE * total_pages)
+        ],
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+
+    page10 = (out / "lists" / "songs" / "10.html").read_text()
+    # Two pages on each side of 10, plus first and last, with ellipses
+    # bridging 1->8 and 12->20.
+    for n in (1, 8, 9, 10, 11, 12, 20):
+        assert f">{n}<" in page10, f"page-10 control missing page {n}"
+    for n in (2, 3, 4, 5, 6, 7, 13, 14, 15, 16, 17, 18, 19):
+        assert f">{n}<" not in page10, f"page-10 control unexpectedly has {n}"
+    # Two ellipses (one each side of the window).
+    assert page10.count("…") == 2
+
+
+def test_pagination_uses_full_list_scale_for_score_bars(tmp_path):
+    # The bar width compares to the largest absolute mean across the
+    # full list, not just the current page. Otherwise page 2 would
+    # silently re-normalize and rows would look identically intense
+    # whether or not they ranked highly overall.
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    from great.render import LIST_PAGE_SIZE  # noqa: PLC0415
+
+    config = GreatConfig(lists=[ListConfig(name="songs", kind="song")])
+    store = Store.init(tmp_path, config)
+    n_items = LIST_PAGE_SIZE + 5
+    store.write_items(
+        "song",
+        [
+            Item(id=f"s{n:04d}", kind="song", title=f"Song {n:04d}")
+            for n in range(n_items)
+        ],
+    )
+    # One comparison places s0000 above s0001 so the bar scale is
+    # driven by a top-of-page-1 item; page 2's bars must shrink, not
+    # rescale to their own (uniformly tiny) maximum.
+    store.append_comparison(
+        "songs",
+        Comparison(
+            ts=datetime(2026, 5, 27, tzinfo=UTC),
+            items=["s0000", "s0001"],
+            ordering=[[0], [1]],
+        ),
+    )
+    out = tmp_path / "dist"
+    build_site(store, out)
+
+    p2 = (out / "lists" / "songs" / "2.html").read_text()
+    # Every page-2 row is a tied non-participating item — bars sit at
+    # the 50% midline rather than rescaling within the page.
+    assert "left: 50.0%" in p2
+    assert "left: 100.0%" not in p2

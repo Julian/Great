@@ -24,6 +24,12 @@ if TYPE_CHECKING:
 TIER_LETTERS = ("D", "C", "B", "A", "S")
 N_QUANTILES = len(TIER_LETTERS)
 
+# Number of rows rendered on a single list page. Beyond this, subsequent
+# pages spill into ``lists/<name>/<n>.html`` and a pagination control
+# stitches them together. Sized so each generated file stays well under
+# a megabyte even with score bars and creator bylines per row.
+LIST_PAGE_SIZE = 200
+
 
 def tier_label(quantile: int) -> str:
     """Map a 5-quantile bucket index to a tier letter (D..S)."""
@@ -76,13 +82,16 @@ def build_site(store: Store, out: Path) -> None:
 
     lists_dir = out / "lists"
     lists_dir.mkdir(exist_ok=True)
+    list_template = env.get_template("list.html")
     for data in list_data:
-        write(
-            lists_dir / f"{data['config'].name}.html",
-            env.get_template("list.html"),
-            up="../",
-            list=data,
-        )
+        list_name = data["config"].name
+        for page in data["pages"]:
+            if page["number"] == 1:
+                path = lists_dir / f"{list_name}.html"
+            else:
+                path = lists_dir / list_name / f"{page['number']}.html"
+                path.parent.mkdir(exist_ok=True)
+            write(path, list_template, up=page["up"], list=data, page=page)
 
     item_log: dict[tuple[ItemKind, str], list[LogEntry]] = {}
     for entry in log_entries:
@@ -290,16 +299,128 @@ def _aggregate_lists(
                 # catalogs with tens of thousands of items the loop
                 # turned quadratic and dominated build time.
                 "rank_by_id": {item.id: i for i, item in enumerate(ranked, 1)},
-                "rows": _ranked_rows(
+                "pages": _paginate_list(
+                    list_config.name,
                     ranked,
                     scores,
                     tiers,
                     artist_by_name,
-                    up="../",
                 ),
             },
         )
     return out
+
+
+def _paginate_list(
+    list_name: str,
+    ranked: list[Item],
+    scores: dict[str, Score],
+    tiers: dict[str, str],
+    artist_by_name: dict[str, Item],
+) -> list[dict[str, Any]]:
+    """Split ``ranked`` into per-page render contexts for ``list.html``."""
+    n_total = len(ranked)
+    total_pages = max(1, (n_total + LIST_PAGE_SIZE - 1) // LIST_PAGE_SIZE)
+    # Compute the bar scale once over the full list so the score-mark
+    # ticks line up visually across pages.
+    scale = max((abs(s.mean) for s in scores.values()), default=0.0) or 1.0
+    pages: list[dict[str, Any]] = []
+    for number in range(1, total_pages + 1):
+        up = "../" if number == 1 else "../../"
+        start = (number - 1) * LIST_PAGE_SIZE
+        end = min(start + LIST_PAGE_SIZE, n_total)
+        pages.append(
+            {
+                "number": number,
+                "up": up,
+                "rows": _ranked_rows(
+                    ranked[start:end],
+                    scores,
+                    tiers,
+                    artist_by_name,
+                    up=up,
+                    start_rank=start + 1,
+                    scale=scale,
+                ),
+                "start_rank": start + 1,
+                "end_rank": end,
+                "total_pages": total_pages,
+                "prev_href": (
+                    _list_page_href(number - 1, number, list_name)
+                    if number > 1
+                    else None
+                ),
+                "next_href": (
+                    _list_page_href(number + 1, number, list_name)
+                    if number < total_pages
+                    else None
+                ),
+                "links": _page_links(number, total_pages, list_name),
+            },
+        )
+    return pages
+
+
+def _list_page_href(
+    target: int,
+    current: int,
+    list_name: str,
+) -> str | None:
+    """
+    Build an href from page ``current`` to ``target`` within ``list_name``.
+
+    Page 1 lives at ``lists/<name>.html`` and pages 2+ at
+    ``lists/<name>/<n>.html``, so links crossing that boundary need a
+    ``../`` adjustment. ``target == current`` returns ``None`` so the
+    template can render it as a non-link.
+    """
+    if target == current:
+        return None
+    if target == 1:
+        return f"../{list_name}.html"
+    if current == 1:
+        return f"{list_name}/{target}.html"
+    return f"{target}.html"
+
+
+def _page_links(
+    current: int,
+    total: int,
+    list_name: str,
+) -> list[dict[str, Any]]:
+    """
+    Numbered pagination control with ellipses around the current window.
+
+    Always shows page 1, the last page, and a window of two pages on
+    each side of ``current``. Gaps are filled with a non-link ellipsis
+    so very long lists don't produce a wall of numbers.
+    """
+    if total <= 1:
+        return []
+    window = range(max(1, current - 2), min(total, current + 2) + 1)
+    shown = sorted({1, total, *window})
+    links: list[dict[str, Any]] = []
+    prev = 0
+    for n in shown:
+        if prev and n > prev + 1:
+            links.append(
+                {
+                    "label": "…",
+                    "href": None,
+                    "current": False,
+                    "ellipsis": True,
+                },
+            )
+        links.append(
+            {
+                "label": str(n),
+                "href": _list_page_href(n, current, list_name),
+                "current": n == current,
+                "ellipsis": False,
+            },
+        )
+        prev = n
+    return links
 
 
 def _aggregate_wants(
@@ -341,23 +462,29 @@ def _ranked_rows(
     artist_by_name: dict[str, Item],
     *,
     up: str,
+    start_rank: int = 1,
+    scale: float | None = None,
 ) -> list[dict[str, Any]]:
     """
     Per-row view data: rank, score, tier, score-bar geometry, tier-break flag.
 
     The bar is bipolar, centered on 0 and scaled so the largest absolute
     mean fills the row at 100%; ``bar_pct`` is signed (negative grows
-    leftward, positive grows rightward in the template).
+    leftward, positive grows rightward in the template). ``start_rank``
+    and ``scale`` are passed in by the paginator so that rank numbers
+    keep climbing across pages and bar widths stay consistent (each
+    page would otherwise compute its own local maximum).
     """
-    scale = max((abs(s.mean) for s in scores.values()), default=0.0) or 1.0
+    if scale is None:
+        scale = max((abs(s.mean) for s in scores.values()), default=0.0) or 1.0
     rows: list[dict[str, Any]] = []
     prev_tier: str | None = None
-    for i, item in enumerate(ranked, 1):
+    for offset, item in enumerate(ranked):
         score = scores[item.id]
         tier = tiers.get(item.id)
         rows.append(
             {
-                "rank": i,
+                "rank": start_rank + offset,
                 "item": item,
                 "creators": _creators_view(
                     item.creators,

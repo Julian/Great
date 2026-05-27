@@ -2,11 +2,12 @@
 {% from "_macros.html" import byline %}
 {% block title %}{{ list.config.name }} &mdash; Great{% endblock %}
 {% block content %}
-<h2>{{ list.config.name }}</h2>
+<h2>{{ list.config.name }}{% if page.total_pages > 1 %} <small class="page-marker">page {{ page.number }} of {{ page.total_pages }}</small>{% endif %}</h2>
 {% if list.config.description %}<p>{{ list.config.description }}</p>{% endif %}
 <p class="meta">
   {{ list.ranked|length }} item{{ '' if list.ranked|length == 1 else 's' }}
   &mdash; {{ list.comparison_count }} comparison{{ '' if list.comparison_count == 1 else 's' }}
+  {% if page.total_pages > 1 %}&mdash; showing {{ page.start_rank }}&ndash;{{ page.end_rank }}{% endif %}
 </p>
 
 <table class="ranked">
@@ -22,14 +23,14 @@
     </tr>
   </thead>
   <tbody>
-    {% for row in list.rows %}
+    {% for row in page.rows %}
     <tr{% if row.tier_break %} class="tier-break"{% endif %}>
       <td class="rank">{{ row.rank }}</td>
       {% if list.tiers %}
       <td class="tier tier-{{ row.tier }}">{% if row.tier_break or loop.first %}{{ row.tier }}{% endif %}</td>
       {% endif %}
       <td class="title">
-        <a href="../items/{{ row.item.kind }}/{{ row.item.id|slug_href }}.html">{{ row.item.title }}</a>{% if row.creators %}<span class="byline">{{ byline(row.creators) }}</span>{% endif %}
+        <a href="{{ up }}items/{{ row.item.kind }}/{{ row.item.id|slug_href }}.html">{{ row.item.title }}</a>{% if row.creators %}<span class="byline">{{ byline(row.creators) }}</span>{% endif %}
       </td>
       <td class="num col-year">{% if row.item.year %}{{ row.item.year }}{% else %}&mdash;{% endif %}</td>
       <td class="num col-score">{{ "%+.2f"|format(row.score.mean) }}</td>
@@ -43,4 +44,19 @@
     {% endfor %}
   </tbody>
 </table>
+
+{% if page.total_pages > 1 %}
+<nav class="pagination" aria-label="Pagination">
+  {% if page.prev_href %}<a class="prev" href="{{ page.prev_href }}" rel="prev">&larr; Prev</a>{% else %}<span class="prev disabled">&larr; Prev</span>{% endif %}
+  <span class="pages">
+    {% for link in page.links -%}
+    {%- if link.current %}<span class="current" aria-current="page">{{ link.label }}</span>
+    {%- elif link.ellipsis %}<span class="ellipsis">{{ link.label }}</span>
+    {%- else %}<a href="{{ link.href }}">{{ link.label }}</a>
+    {%- endif %}
+    {% endfor %}
+  </span>
+  {% if page.next_href %}<a class="next" href="{{ page.next_href }}" rel="next">Next &rarr;</a>{% else %}<span class="next disabled">Next &rarr;</span>{% endif %}
+</nav>
+{% endif %}
 {% endblock %}
