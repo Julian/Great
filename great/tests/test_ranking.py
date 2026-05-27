@@ -17,10 +17,9 @@ def _movie(id_: str, title: str | None = None) -> Item:
     return Item(id=id_, kind="movie", title=title or id_)
 
 
-def _comp(items_: list[str], ordering, when: int = 1) -> Comparison:
+def _comp(ordering: list[list[str]], when: int = 1) -> Comparison:
     return Comparison(
         ts=datetime(2026, 5, when, tzinfo=UTC),
-        items=items_,
         ordering=ordering,
     )
 
@@ -40,28 +39,28 @@ def test_infer_no_comparisons_returns_prior():
 
 def test_infer_pairwise_winner_has_higher_mean():
     items = [_movie("a"), _movie("b")]
-    comparisons = [_comp(["a", "b"], [[0], [1]])] * 5
+    comparisons = [_comp([["a"], ["b"]])] * 5
     scores = infer(comparisons, items)
     assert scores["a"].mean > scores["b"].mean
 
 
 def test_infer_kway_preserves_order():
     items = [_movie("a"), _movie("b"), _movie("c")]
-    comparisons = [_comp(["a", "b", "c"], [[0], [1], [2]])] * 5
+    comparisons = [_comp([["a"], ["b"], ["c"]])] * 5
     scores = infer(comparisons, items)
     assert scores["a"].mean > scores["b"].mean > scores["c"].mean
 
 
 def test_infer_tie_gives_equal_scores():
     items = [_movie("a"), _movie("b")]
-    comparisons = [_comp(["a", "b"], [[0, 1]])] * 5
+    comparisons = [_comp([["a", "b"]])] * 5
     scores = infer(comparisons, items)
     assert scores["a"].mean == pytest.approx(scores["b"].mean, abs=1e-6)
 
 
 def test_infer_partial_tie():
     items = [_movie("a"), _movie("b"), _movie("c")]
-    comparisons = [_comp(["a", "b", "c"], [[0], [1, 2]])] * 5
+    comparisons = [_comp([["a"], ["b", "c"]])] * 5
     scores = infer(comparisons, items)
     assert scores["a"].mean > scores["b"].mean
     assert scores["a"].mean > scores["c"].mean
@@ -71,8 +70,8 @@ def test_infer_partial_tie():
 def test_infer_drops_stale_item_ids():
     items = [_movie("a"), _movie("b")]
     comparisons = [
-        _comp(["a", "ghost"], [[0], [1]]),
-        _comp(["a", "b"], [[0], [1]]),
+        _comp([["a"], ["ghost"]]),
+        _comp([["a"], ["b"]]),
     ]
     scores = infer(comparisons, items)
     assert scores["a"].mean > scores["b"].mean
@@ -90,9 +89,9 @@ def test_infer_isolated_items_get_prior_without_paying_for_full_solve():
 
     items = [_movie(f"i{n:05d}") for n in range(10_000)]
     comparisons = [
-        _comp(["i00000", "i00001"], [[0], [1]]),
-        _comp(["i00001", "i00002"], [[0], [1]]),
-        _comp(["i00002", "i00003"], [[0], [1]]),
+        _comp([["i00000"], ["i00001"]]),
+        _comp([["i00001"], ["i00002"]]),
+        _comp([["i00002"], ["i00003"]]),
     ]
     start = time.perf_counter()
     scores = infer(comparisons, items)

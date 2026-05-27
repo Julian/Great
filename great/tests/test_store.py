@@ -92,13 +92,11 @@ def test_items_missing_returns_empty(store):
 def test_comparisons_append_and_read(store):
     c1 = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
-        items=["tt1", "tt2"],
-        ordering=[[0], [1]],
+        ordering=[["tt1"], ["tt2"]],
     )
     c2 = Comparison(
         ts=datetime(2026, 5, 9, 14, 5, tzinfo=UTC),
-        items=["tt1", "tt3"],
-        ordering=[[0, 1]],
+        ordering=[["tt1", "tt3"]],
     )
     store.append_comparison("movies", c1)
     store.append_comparison("movies", c2)
@@ -112,8 +110,7 @@ def test_comparisons_missing_returns_empty(store):
 def test_want_comparisons_round_trip(store):
     c = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
-        items=["tt1", "tt2"],
-        ordering=[[0], [1]],
+        ordering=[["tt1"], ["tt2"]],
     )
     store.append_want_comparison("movie", c)
     assert store.want_comparisons("movie") == [c]

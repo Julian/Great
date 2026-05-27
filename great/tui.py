@@ -203,7 +203,7 @@ class RankApp(App):
 
     def action_tie(self) -> None:
         """Submit the cluster as a single indistinguishable tie group."""
-        self.result = [list(self._order)]
+        self.result = [[self._items[i].id for i in self._order]]
         self.exit()
 
     def action_skip(self) -> None:
@@ -213,12 +213,13 @@ class RankApp(App):
 
     def action_submit(self) -> None:
         """Submit the current order, collapsing tied-with-above runs."""
-        groups: list[list[int]] = []
+        groups: list[list[str]] = []
         for pos, idx in enumerate(self._order):
+            item_id = self._items[idx].id
             if pos > 0 and self._tied[pos]:
-                groups[-1].append(idx)
+                groups[-1].append(item_id)
             else:
-                groups.append([idx])
+                groups.append([item_id])
         self.result = groups
         self.exit()
 

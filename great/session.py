@@ -23,7 +23,7 @@ RANK_MAX_ITERS_DEFAULT = 100
 MAX_K = 5
 
 SKIP: Literal["skip"] = "skip"
-RankResult = list[list[int]] | Literal["skip"] | None
+RankResult = list[list[str]] | Literal["skip"] | None
 Session = Callable[[list[Item]], RankResult]
 
 
@@ -162,11 +162,7 @@ def run_rank_loop(
             force_random_next = True
             continue
 
-        c = Comparison(
-            ts=datetime.now(UTC),
-            items=cluster_ids,
-            ordering=result,
-        )
+        c = Comparison(ts=datetime.now(UTC), ordering=result)
         scope.append_comparison(c)
         comparisons.append(c)
         appended += 1

@@ -15,13 +15,14 @@ def test_run_rank_loop_records_comparison(tmp_path, make_movies_store):
 
     appended = run_rank_loop(
         RankingScope.for_list(store, "movies"),
-        session=lambda _cluster: [[0], [1]],
+        session=lambda cluster: [[cluster[0].id], [cluster[1].id]],
         max_iters=1,
     )
 
     assert appended == 1
     [c] = store.comparisons("movies")
-    assert c.ordering == [[0], [1]]
+    assert len(c.ordering) == 2
+    assert all(len(group) == 1 for group in c.ordering)
 
 
 def test_run_rank_loop_session_can_signal_quit(tmp_path, make_movies_store):
@@ -51,7 +52,7 @@ def test_run_rank_loop_session_can_skip_cluster(tmp_path, make_movies_store):
         if calls["n"] == 1:
             return SKIP
         if calls["n"] == 2:
-            return [[i] for i in range(len(cluster))]
+            return [[item.id] for item in cluster]
         return None
 
     appended = run_rank_loop(
@@ -63,7 +64,8 @@ def test_run_rank_loop_session_can_skip_cluster(tmp_path, make_movies_store):
     assert calls["n"] == 3  # skip, record, cancel
     assert appended == 1
     [c] = store.comparisons("movies")
-    assert c.ordering == [[0], [1], [2], [3], [4]]
+    assert len(c.ordering) == 5
+    assert all(len(group) == 1 for group in c.ordering)
 
 
 def test_run_rank_loop_records_tie(tmp_path, make_movies_store):
@@ -71,12 +73,13 @@ def test_run_rank_loop_records_tie(tmp_path, make_movies_store):
 
     run_rank_loop(
         RankingScope.for_list(store, "movies"),
-        session=lambda cluster: [list(range(len(cluster)))],
+        session=lambda cluster: [[item.id for item in cluster]],
         max_iters=1,
     )
 
     [c] = store.comparisons("movies")
-    assert c.ordering == [[0, 1]]
+    assert len(c.ordering) == 1
+    assert len(c.ordering[0]) == 2
 
 
 def test_run_rank_loop_orders_cluster_by_descending_mean(
@@ -95,11 +98,7 @@ def test_run_rank_loop_orders_cluster_by_descending_mean(
         ids = [item.id for item in cluster]
         seen.append(ids)
         if len(seen) == 1:
-            # Rank tt2 above tt1 regardless of which order the cluster
-            # arrived in -- cold-start clusters tie-break randomly, so
-            # a fixed ``[[1], [0]]`` would assert on whichever item
-            # happened to land at index 1 that run.
-            return [[ids.index("tt2")], [ids.index("tt1")]]
+            return [["tt2"], ["tt1"]]
         return None
 
     run_rank_loop(
@@ -124,7 +123,7 @@ def test_run_rank_loop_stops_when_ranking_is_settled(
 
     appended = run_rank_loop(
         RankingScope.for_list(store, "movies"),
-        session=lambda cluster: [[i] for i in range(len(cluster))],
+        session=lambda cluster: [[item.id] for item in cluster],
         max_iters=1000,
     )
 
@@ -145,7 +144,7 @@ def test_run_rank_loop_focus_mode_keeps_focus_in_every_cluster(
 
     def session(cluster):
         seen.append([item.id for item in cluster])
-        return [[i] for i in range(len(cluster))]
+        return [[item.id] for item in cluster]
 
     appended = run_rank_loop(
         RankingScope.for_list(store, "movies"),
@@ -171,14 +170,14 @@ def test_run_rank_loop_focus_mode_stops_when_focus_is_settled(
     store = make_movies_store(tmp_path, items=items)
     appended_focus = run_rank_loop(
         RankingScope.for_list(store, "movies"),
-        session=lambda cluster: [[i] for i in range(len(cluster))],
+        session=lambda cluster: [[item.id] for item in cluster],
         max_iters=1000,
         focus_ids=["tt0"],
     )
     store_unfocused = make_movies_store(tmp_path / "other", items=items)
     appended_full = run_rank_loop(
         RankingScope.for_list(store_unfocused, "movies"),
-        session=lambda cluster: [[i] for i in range(len(cluster))],
+        session=lambda cluster: [[item.id] for item in cluster],
         max_iters=1000,
     )
     # Focus mode settles strictly sooner: it only needs to separate
@@ -194,14 +193,15 @@ def test_run_rank_loop_want_scope_writes_to_want_comparisons(tmp_path):
 
     appended = run_rank_loop(
         RankingScope.for_want(store, "movie"),
-        session=lambda _cluster: [[0], [1]],
+        session=lambda cluster: [[cluster[0].id], [cluster[1].id]],
         max_iters=1,
     )
 
     assert appended == 1
     assert store.comparisons("movies") == []
     [c] = store.want_comparisons("movie")
-    assert c.ordering == [[0], [1]]
+    assert len(c.ordering) == 2
+    assert all(len(group) == 1 for group in c.ordering)
 
 
 def test_run_rank_loop_refuses_too_few_items(tmp_path, make_movies_store):

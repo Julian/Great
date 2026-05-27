@@ -39,8 +39,8 @@ def test_show_reflects_comparison(tmp_path, make_movies_store):
     store = make_movies_store(tmp_path)
 
     def session(cluster):
-        titles = [item.title for item in cluster]
-        return [[titles.index("Anora")], [titles.index("Casablanca")]]
+        by_title = {item.title: item.id for item in cluster}
+        return [[by_title["Anora"]], [by_title["Casablanca"]]]
 
     appended = run_rank_loop(
         RankingScope.for_list(store, "movies"),
@@ -546,7 +546,7 @@ def test_show_includes_tier_after_comparisons(tmp_path):
     )
     run_rank_loop(
         RankingScope.for_list(store, "movies"),
-        session=lambda _cluster: [[0], [1]],
+        session=lambda cluster: [[cluster[0].id], [cluster[1].id]],
         max_iters=1,
     )
     result = CliRunner().invoke(

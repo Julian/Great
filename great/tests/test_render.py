@@ -40,8 +40,7 @@ def populated(tmp_path):
         "movies",
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            items=["tt1", "tt2"],
-            ordering=[[0], [1]],
+            ordering=[["tt1"], ["tt2"]],
         ),
     )
     store.append_log(
@@ -726,8 +725,7 @@ def test_pagination_uses_full_list_scale_for_score_bars(tmp_path):
         "songs",
         Comparison(
             ts=datetime(2026, 5, 27, tzinfo=UTC),
-            items=["s0000", "s0001"],
-            ordering=[[0], [1]],
+            ordering=[["s0000"], ["s0001"]],
         ),
     )
     out = tmp_path / "dist"

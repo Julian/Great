@@ -115,16 +115,19 @@ class Item(BaseModel):
         )
 
 
+MIN_COMPARISON_ITEMS = 2
+
+
 class Comparison(BaseModel):
     """
     A single ranking judgment over 2..k items.
 
-    ``ordering`` is a list of tie groups, best to worst. Each group is
-    a list of indices into ``items`` that the user judged
-    indistinguishable from one another. A fully-ordered comparison has
-    one item per group (e.g. ``[[0], [1], [2]]``); an all-tied
-    comparison has a single group (e.g. ``[[0, 1, 2]]``); partial
-    ties are also expressible (e.g. ``[[2], [0, 1]]``).
+    ``ordering`` is a list of tie groups of item ids, best to worst.
+    Each group lists the items the user judged indistinguishable from
+    one another. A fully-ordered comparison has one item per group
+    (e.g. ``[["a"], ["b"], ["c"]]``); an all-tied comparison has a
+    single group (e.g. ``[["a", "b", "c"]]``); partial ties are also
+    expressible (e.g. ``[["c"], ["a", "b"]]``).
 
     Comparisons are routed to storage by the caller (favorite-ranking
     vs. want-ranking, list name or kind); the record itself carries no
@@ -134,17 +137,22 @@ class Comparison(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ts: datetime
-    items: list[str] = Field(min_length=2)
-    ordering: list[list[int]] = Field(min_length=1)
+    ordering: list[list[str]]
 
     @model_validator(mode="after")
-    def _ordering_partitions_items(self) -> Self:
-        flat = sorted(i for group in self.ordering for i in group)
-        if any(not group for group in self.ordering):
-            raise ValueError("tie groups must be non-empty")
-        if flat != list(range(len(self.items))):
+    def _distinct_non_empty_groups(self) -> Self:
+        seen: set[str] = set()
+        total = 0
+        for group in self.ordering:
+            if not group:
+                raise ValueError("tie groups must be non-empty")
+            seen.update(group)
+            total += len(group)
+        if len(seen) != total:
+            raise ValueError("ordering must not repeat item ids")
+        if total < MIN_COMPARISON_ITEMS:
             raise ValueError(
-                "ordering must partition the indices of `items`",
+                f"a comparison needs at least {MIN_COMPARISON_ITEMS} items",
             )
         return self
 

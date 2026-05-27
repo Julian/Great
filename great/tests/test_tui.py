@@ -35,7 +35,7 @@ async def test_submit_initial_order():
     app = RankApp(_movies("a", "b", "c"))
     async with app.run_test() as pilot:
         await pilot.press("enter")
-    assert app.result == [[0], [1], [2]]
+    assert app.result == [["a"], ["b"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -44,7 +44,7 @@ async def test_move_first_item_down():
     async with app.run_test() as pilot:
         await pilot.press("J")
         await pilot.press("enter")
-    assert app.result == [[1], [0], [2]]
+    assert app.result == [["b"], ["a"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -58,7 +58,7 @@ async def test_move_third_item_to_top():
         await pilot.press("K")
         await pilot.press("K")
         await pilot.press("enter")
-    assert app.result == [[3], [0], [1], [2]]
+    assert app.result == [["d"], ["a"], ["b"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_move_at_boundary_is_noop():
     async with app.run_test() as pilot:
         await pilot.press("K")
         await pilot.press("enter")
-    assert app.result == [[0], [1]]
+    assert app.result == [["a"], ["b"]]
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_tie_submits_single_group():
     app = RankApp(_movies("a", "b", "c"))
     async with app.run_test() as pilot:
         await pilot.press("t")
-    assert app.result == [[0, 1, 2]]
+    assert app.result == [["a", "b", "c"]]
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_tie_rest_ties_focused_through_bottom():
         await pilot.press("j")
         await pilot.press("equals_sign")
         await pilot.press("enter")
-    assert app.result == [[0], [1, 2, 3, 4]]
+    assert app.result == [["a"], ["b", "c", "d", "e"]]
 
 
 @pytest.mark.asyncio
@@ -99,7 +99,7 @@ async def test_tie_rest_then_split_creates_two_subgroups():
         await pilot.press("j", "j")
         await pilot.press("equals_sign")
         await pilot.press("enter")
-    assert app.result == [[0], [1, 2], [3, 4]]
+    assert app.result == [["a"], ["b", "c"], ["d", "e"]]
 
 
 @pytest.mark.asyncio
@@ -111,7 +111,7 @@ async def test_tie_rest_at_group_start_undoes_it():
         await pilot.press("equals_sign")
         await pilot.press("equals_sign")
         await pilot.press("enter")
-    assert app.result == [[0], [1], [2], [3]]
+    assert app.result == [["a"], ["b"], ["c"], ["d"]]
 
 
 @pytest.mark.asyncio
@@ -121,7 +121,7 @@ async def test_tie_rest_at_bottom_is_noop():
         await pilot.press("j", "j")
         await pilot.press("equals_sign")
         await pilot.press("enter")
-    assert app.result == [[0], [1], [2]]
+    assert app.result == [["a"], ["b"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -154,7 +154,7 @@ async def test_tie_rest_at_top_ties_everything():
     async with app.run_test() as pilot:
         await pilot.press("equals_sign")
         await pilot.press("enter")
-    assert app.result == [[0, 1, 2]]
+    assert app.result == [["a", "b", "c"]]
 
 
 @pytest.mark.asyncio
@@ -164,7 +164,7 @@ async def test_number_sends_focused_item_to_rank():
         await pilot.press("j", "j", "j")
         await pilot.press("1")
         await pilot.press("enter")
-    assert app.result == [[3], [0], [1], [2]]
+    assert app.result == [["d"], ["a"], ["b"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -175,7 +175,7 @@ async def test_number_cursor_lands_on_row_below_placed():
         await pilot.press("1")
         await pilot.press("J")
         await pilot.press("enter")
-    assert app.result == [[3], [1], [0], [2]]
+    assert app.result == [["d"], ["b"], ["a"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -185,7 +185,7 @@ async def test_number_to_last_position_leaves_cursor_on_placed():
         await pilot.press("3")
         await pilot.press("K")
         await pilot.press("enter")
-    assert app.result == [[1], [0], [2]]
+    assert app.result == [["b"], ["a"], ["c"]]
 
 
 @pytest.mark.asyncio
@@ -194,7 +194,7 @@ async def test_number_out_of_range_is_noop():
     async with app.run_test() as pilot:
         await pilot.press("5")
         await pilot.press("enter")
-    assert app.result == [[0], [1], [2]]
+    assert app.result == [["a"], ["b"], ["c"]]
 
 
 @pytest.mark.asyncio

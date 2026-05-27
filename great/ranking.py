@@ -222,17 +222,10 @@ def _to_pairs(c: Comparison) -> list[tuple[str, str]]:
     pairs: list[tuple[str, str]] = []
     for gi, winners in enumerate(c.ordering):
         for losers in c.ordering[gi + 1 :]:
-            pairs.extend(
-                (c.items[w], c.items[l_]) for w in winners for l_ in losers
-            )
+            pairs.extend((w, l_) for w in winners for l_ in losers)
     for group in c.ordering:
         for i, a in enumerate(group):
             pairs.extend(
-                pair
-                for b in group[i + 1 :]
-                for pair in (
-                    (c.items[a], c.items[b]),
-                    (c.items[b], c.items[a]),
-                )
+                pair for b in group[i + 1 :] for pair in ((a, b), (b, a))
             )
     return pairs

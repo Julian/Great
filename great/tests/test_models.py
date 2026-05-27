@@ -88,55 +88,48 @@ def test_item_parent_id_rejected_on_parentless_kind():
 def test_comparison_pairwise():
     c = Comparison(
         ts=datetime(2026, 5, 9, 14, 0, tzinfo=UTC),
-        items=["a", "b"],
-        ordering=[[0], [1]],
+        ordering=[["a"], ["b"]],
     )
-    assert c.ordering == [[0], [1]]
+    assert c.ordering == [["a"], ["b"]]
 
 
 def test_comparison_kway():
     c = Comparison(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
-        items=["a", "b", "c"],
-        ordering=[[2], [0], [1]],
+        ordering=[["c"], ["a"], ["b"]],
     )
-    assert c.items == ["a", "b", "c"]
-    assert c.ordering == [[2], [0], [1]]
+    assert c.ordering == [["c"], ["a"], ["b"]]
 
 
 def test_comparison_tie():
     c = Comparison(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
-        items=["a", "b"],
-        ordering=[[0, 1]],
+        ordering=[["a", "b"]],
     )
-    assert c.ordering == [[0, 1]]
+    assert c.ordering == [["a", "b"]]
 
 
 def test_comparison_partial_tie():
     c = Comparison(
         ts=datetime(2026, 5, 9, tzinfo=UTC),
-        items=["a", "b", "c"],
-        ordering=[[2], [0, 1]],
+        ordering=[["c"], ["a", "b"]],
     )
-    assert c.ordering == [[2], [0, 1]]
+    assert c.ordering == [["c"], ["a", "b"]]
 
 
 def test_comparison_requires_two_items():
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="at least 2"):
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            items=["only-one"],
-            ordering=[[0]],
+            ordering=[["only-one"]],
         )
 
 
-def test_comparison_rejects_non_partition():
-    with pytest.raises(ValidationError, match="partition"):
+def test_comparison_rejects_duplicate_ids():
+    with pytest.raises(ValidationError, match="repeat"):
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            items=["a", "b"],
-            ordering=[[0], [0]],
+            ordering=[["a"], ["a"]],
         )
 
 
@@ -144,8 +137,7 @@ def test_comparison_rejects_empty_group():
     with pytest.raises(ValidationError, match="non-empty"):
         Comparison(
             ts=datetime(2026, 5, 9, tzinfo=UTC),
-            items=["a", "b"],
-            ordering=[[0, 1], []],
+            ordering=[["a", "b"], []],
         )
 
 
