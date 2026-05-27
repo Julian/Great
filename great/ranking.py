@@ -85,6 +85,11 @@ def select_cluster(
     everything and ranking is effectively settled. Callers should
     treat that as a signal to stop asking.
 
+    Ties (in either variance or confusability) are broken uniformly
+    at random via ``rng``, so cold-start clusters -- where every item
+    shares the prior -- look like genuine random samples instead of
+    whatever the input list ordering happens to be.
+
     ``force_random_seed`` replaces the variance-greedy seed with a
     uniform pick *among the ``max_k`` most-uncertain items*, to escape
     fixed points without spuriously seeding on a well-separated item
@@ -116,23 +121,26 @@ def select_cluster(
     if force_random_seed:
         top_uncertain = sorted(
             seed_candidates,
-            key=lambda i: scores[i.id].variance,
+            key=lambda i: (scores[i.id].variance, rng.random()),
             reverse=True,
         )[:max_k]
         seed = rng.choice(top_uncertain)
     else:
-        seed = max(seed_candidates, key=lambda i: scores[i.id].variance)
+        seed = max(
+            seed_candidates,
+            key=lambda i: (scores[i.id].variance, rng.random()),
+        )
     seed_score = scores[seed.id]
 
     scored_candidates = [
-        (_confusability(seed_score, scores[i.id]), i.id)
+        (_confusability(seed_score, scores[i.id]), rng.random(), i.id)
         for i in items
         if i.id != seed.id
     ]
     scored_candidates.sort(reverse=True)
 
     cluster = [seed.id]
-    for conf, cand_id in scored_candidates:
+    for conf, _, cand_id in scored_candidates:
         if len(cluster) >= max_k or conf < MIN_CONFUSABILITY:
             break
         cluster.append(cand_id)

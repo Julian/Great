@@ -86,6 +86,22 @@ def test_select_cluster_cold_start_returns_all():
     assert sorted(cluster) == sorted(["a", "b", "c", "d", "e"])
 
 
+def test_select_cluster_cold_start_samples_randomly():
+    items = [_movie(f"i{n:02d}") for n in range(100)]
+    scores = {i.id: Score(0.0, COLD_START_VARIANCE) for i in items}
+    rng = random.Random(0)
+    seeds: set[str] = set()
+    expansions: set[frozenset[str]] = set()
+    for _ in range(20):
+        cluster = select_cluster(scores, items, max_k=5, rng=rng)
+        seeds.add(cluster[0])
+        expansions.add(frozenset(cluster[1:]))
+    # With 100 cold-start items, repeated calls should not collapse to
+    # the same first-five-by-id; both seed and expansion should vary.
+    assert len(seeds) > 5
+    assert len(expansions) > 5
+
+
 def test_select_cluster_caps_at_max_k():
     items = [_movie(c) for c in "abcdefghij"]
     scores = {i.id: Score(0.0, COLD_START_VARIANCE) for i in items}
@@ -186,16 +202,22 @@ def test_select_cluster_force_random_seed_differs():
     scores["a"] = Score(0.0, 100.0)
 
     greedy = select_cluster(scores, items, max_k=2)
-    rng = random.Random(0)
-    random_seed = select_cluster(
-        scores,
-        items,
-        max_k=2,
-        rng=rng,
-        force_random_seed=True,
-    )
     assert greedy[0] == "a"
-    assert random_seed != greedy or random_seed[0] != "a"
+
+    rng = random.Random(0)
+    seeds = {
+        select_cluster(
+            scores,
+            items,
+            max_k=2,
+            rng=rng,
+            force_random_seed=True,
+        )[0]
+        for _ in range(20)
+    }
+    # At least one of those 20 force-random runs picks something other
+    # than the greedy seed "a".
+    assert seeds - {"a"}
 
 
 def test_select_cluster_seed_pool_restricts_seed():

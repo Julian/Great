@@ -38,9 +38,13 @@ def test_show_unknown_list(tmp_path):
 def test_show_reflects_comparison(tmp_path, make_movies_store):
     store = make_movies_store(tmp_path)
 
+    def session(cluster):
+        titles = [item.title for item in cluster]
+        return [[titles.index("Anora")], [titles.index("Casablanca")]]
+
     appended = run_rank_loop(
         RankingScope.for_list(store, "movies"),
-        session=lambda _cluster: [[0], [1]],
+        session=session,
         max_iters=1,
     )
     assert appended == 1
