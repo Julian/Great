@@ -4,8 +4,11 @@ Textual ranking session.
 A user runs `great rank <list>`, the engine selects a cluster of
 items, and we pop a Textual app that lets the user reorder the
 cluster from best to worst (j/k navigates, J/K moves the focused
-item, ``t`` declares the whole cluster a tie, ``s`` skips the
-cluster and asks for another, Enter submits, q/Esc cancels).
+item, ``=`` makes the focused item the start of a tie group that
+runs to the bottom (press again at the same position to undo;
+press ``=`` further down to split off a sub-group), ``t``
+declares the whole cluster a tie, ``s`` skips the cluster and
+asks for another, Enter submits, q/Esc cancels).
 """
 
 from typing import ClassVar
@@ -27,6 +30,7 @@ class RankApp(App):
     CSS = """
     Screen { align: center middle; }
     ListView { width: 80%; height: auto; border: round $accent; }
+    ListItem.group-start { border-top: dashed $accent; }
     #hint { padding: 1; color: $text-muted; }
     """
 
@@ -40,7 +44,8 @@ class RankApp(App):
             Binding(str(n), f"move_to({n})", "", priority=True, show=False)
             for n in range(2, 10)
         ),
-        Binding("t", "tie", "Tie", priority=True),
+        Binding("equals_sign", "tie_rest", "Tie rest", priority=True),
+        Binding("t", "tie", "Tie all", priority=True),
         Binding("s", "skip", "Skip", priority=True),
         Binding("enter", "submit", "Submit", priority=True),
         Binding("q,escape", "cancel", "Cancel", priority=True),
@@ -50,6 +55,9 @@ class RankApp(App):
         super().__init__()
         self._items = items
         self._order: list[int] = list(range(len(items)))
+        # _tied[i] is True when position i is tied with position i-1.
+        # _tied[0] is always False (no boundary above position 0).
+        self._tied: list[bool] = [False] * len(items)
         self.result: RankResult = None
 
     def compose(self) -> ComposeResult:
@@ -58,7 +66,7 @@ class RankApp(App):
         yield Label(
             "Rank from best to worst. "
             "j/k focus, J/K move, 1-9 send to rank, "
-            "t=tie, s=skip, Enter submit, q cancel.",
+            "==tie rest below, t=tie all, s=skip, Enter submit, q cancel.",
             id="hint",
         )
         yield ListView(
@@ -68,13 +76,29 @@ class RankApp(App):
         yield Footer()
 
     def _build_items(self) -> list[ListItem]:
-        return [
-            ListItem(Label(self._row_label(rank, self._items[idx])))
-            for rank, idx in enumerate(self._order)
-        ]
+        ranks = self._display_ranks()
+        has_ties = any(self._tied)
+        rows: list[ListItem] = []
+        for pos, idx in enumerate(self._order):
+            label = self._row_label(ranks[pos], self._items[idx])
+            row = ListItem(Label(label))
+            if has_ties and pos > 0 and not self._tied[pos]:
+                row.add_class("group-start")
+            rows.append(row)
+        return rows
+
+    def _display_ranks(self) -> list[int]:
+        """1-indexed competition ranks (e.g. ``[1, 2, 2, 4]``)."""
+        ranks: list[int] = []
+        current = 1
+        for i in range(len(self._order)):
+            if i > 0 and not self._tied[i]:
+                current = i + 1
+            ranks.append(current)
+        return ranks
 
     @staticmethod
-    def _row_label(rank: int, item: Item) -> str:
+    def _row_label(display_rank: int, item: Item) -> str:
         suffix = f" ({item.year})" if item.year is not None else ""
         byline = (
             f"[italic dim]{escape(', '.join(item.creators))}[/] "
@@ -85,7 +109,9 @@ class RankApp(App):
         parent = (
             f" [dim]— {escape(str(parent_title))}[/]" if parent_title else ""
         )
-        return f"{rank + 1:2d}. {byline}{escape(item.title)}{suffix}{parent}"
+        return (
+            f"{display_rank:2d}. {byline}{escape(item.title)}{suffix}{parent}"
+        )
 
     @property
     def _list(self) -> ListView:
@@ -93,10 +119,27 @@ class RankApp(App):
 
     def _swap(self, a: int, b: int) -> None:
         self._order[a], self._order[b] = self._order[b], self._order[a]
+        ranks = self._display_ranks()
         children = self._list.children
         for pos in (a, b):
             label = children[pos].query_one(Label)
-            label.update(self._row_label(pos, self._items[self._order[pos]]))
+            label.update(
+                self._row_label(ranks[pos], self._items[self._order[pos]]),
+            )
+
+    def _refresh_labels(self) -> None:
+        ranks = self._display_ranks()
+        has_ties = any(self._tied)
+        children = self._list.children
+        for pos, idx in enumerate(self._order):
+            row = children[pos]
+            row.query_one(Label).update(
+                self._row_label(ranks[pos], self._items[idx]),
+            )
+            if has_ties and pos > 0 and not self._tied[pos]:
+                row.add_class("group-start")
+            else:
+                row.remove_class("group-start")
 
     def action_cursor_down(self) -> None:
         """Move focus down."""
@@ -136,6 +179,28 @@ class RankApp(App):
         if target + 1 < len(self._order):
             self._list.action_cursor_down()
 
+    def action_tie_rest(self) -> None:
+        """
+        Tie the focused item with everything below into one group.
+
+        Pressing again at the same position (when this position
+        already starts a tie group running to the bottom) splits
+        every item below back into singletons, leaving groups above
+        the focus untouched.
+        """
+        idx = self._list.index or 0
+        n = len(self._order)
+        if idx + 1 >= n:
+            return
+        already_one_group = not self._tied[idx] and all(
+            self._tied[i] for i in range(idx + 1, n)
+        )
+        for i in range(idx + 1, n):
+            self._tied[i] = not already_one_group
+        if not already_one_group:
+            self._tied[idx] = False
+        self._refresh_labels()
+
     def action_tie(self) -> None:
         """Submit the cluster as a single indistinguishable tie group."""
         self.result = [list(self._order)]
@@ -147,8 +212,14 @@ class RankApp(App):
         self.exit()
 
     def action_submit(self) -> None:
-        """Submit the current order as a fully-ranked comparison."""
-        self.result = [[i] for i in self._order]
+        """Submit the current order, collapsing tied-with-above runs."""
+        groups: list[list[int]] = []
+        for pos, idx in enumerate(self._order):
+            if pos > 0 and self._tied[pos]:
+                groups[-1].append(idx)
+            else:
+                groups.append([idx])
+        self.result = groups
         self.exit()
 
     def action_cancel(self) -> None:

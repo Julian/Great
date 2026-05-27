@@ -79,6 +79,85 @@ async def test_tie_submits_single_group():
 
 
 @pytest.mark.asyncio
+async def test_tie_rest_ties_focused_through_bottom():
+    """``=`` at position 2 ties items 2-5 into one group below the standout."""
+    app = RankApp(_movies("a", "b", "c", "d", "e"))
+    async with app.run_test() as pilot:
+        await pilot.press("j")
+        await pilot.press("equals_sign")
+        await pilot.press("enter")
+    assert app.result == [[0], [1, 2, 3, 4]]
+
+
+@pytest.mark.asyncio
+async def test_tie_rest_then_split_creates_two_subgroups():
+    """``=`` again further down splits the existing tie group at the focus."""
+    app = RankApp(_movies("a", "b", "c", "d", "e"))
+    async with app.run_test() as pilot:
+        await pilot.press("j")
+        await pilot.press("equals_sign")
+        await pilot.press("j", "j")
+        await pilot.press("equals_sign")
+        await pilot.press("enter")
+    assert app.result == [[0], [1, 2], [3, 4]]
+
+
+@pytest.mark.asyncio
+async def test_tie_rest_at_group_start_undoes_it():
+    """Pressing ``=`` again at the group's start clears it."""
+    app = RankApp(_movies("a", "b", "c", "d"))
+    async with app.run_test() as pilot:
+        await pilot.press("j")
+        await pilot.press("equals_sign")
+        await pilot.press("equals_sign")
+        await pilot.press("enter")
+    assert app.result == [[0], [1], [2], [3]]
+
+
+@pytest.mark.asyncio
+async def test_tie_rest_at_bottom_is_noop():
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test() as pilot:
+        await pilot.press("j", "j")
+        await pilot.press("equals_sign")
+        await pilot.press("enter")
+    assert app.result == [[0], [1], [2]]
+
+
+@pytest.mark.asyncio
+async def test_group_start_class_marks_boundaries_when_tied():
+    """Leaders of groups [[a], [b, c], [d, e]] get a divider above them."""
+    app = RankApp(_movies("a", "b", "c", "d", "e"))
+    async with app.run_test() as pilot:
+        await pilot.press("j")
+        await pilot.press("equals_sign")
+        await pilot.press("j", "j")
+        await pilot.press("equals_sign")
+        rows = list(app.query("ListItem"))
+        classes = [row.has_class("group-start") for row in rows]
+    assert classes == [False, True, False, True, False]
+
+
+@pytest.mark.asyncio
+async def test_group_start_class_absent_when_all_strict():
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test():
+        rows = list(app.query("ListItem"))
+        classes = [row.has_class("group-start") for row in rows]
+    assert classes == [False, False, False]
+
+
+@pytest.mark.asyncio
+async def test_tie_rest_at_top_ties_everything():
+    """``=`` on the first row collapses the whole cluster — same as ``t``."""
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test() as pilot:
+        await pilot.press("equals_sign")
+        await pilot.press("enter")
+    assert app.result == [[0, 1, 2]]
+
+
+@pytest.mark.asyncio
 async def test_number_sends_focused_item_to_rank():
     app = RankApp(_movies("a", "b", "c", "d"))
     async with app.run_test() as pilot:
