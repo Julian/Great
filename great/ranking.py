@@ -38,28 +38,43 @@ def infer(
     Items with no informative data fall back to a high-variance prior.
     Comparisons referencing items outside ``items`` are silently
     dropped (they can be left over from items the user has removed).
+
+    EP is run only over the items that actually participate in some
+    pair. Isolated nodes (no comparisons referencing them) get the
+    prior directly — under EP, a node with no incident messages
+    converges to the prior, so this is equivalent to including them
+    in the full ``n``-item solve. The shortcut matters at scale: a
+    dense ``ep_pairwise`` builds an ``n``-by-``n`` covariance, so a
+    list with thousands of items and a handful of comparisons would
+    otherwise spend most of its time on items with no signal yet.
     """
     if not items:
         return {}
     item_ids = [item.id for item in items]
-    idx = {iid: i for i, iid in enumerate(item_ids)}
-    n = len(items)
+    id_set = set(item_ids)
 
-    pairs: list[tuple[int, int]] = []
+    raw_pairs: list[tuple[str, str]] = []
     for c in comparisons:
         for winner, loser in _to_pairs(c):
-            if winner in idx and loser in idx:
-                pairs.append((idx[winner], idx[loser]))
+            if winner in id_set and loser in id_set:
+                raw_pairs.append((winner, loser))
 
-    if not pairs:
-        return {iid: Score(0.0, COLD_START_VARIANCE) for iid in item_ids}
-
-    mean, cov = choix.ep_pairwise(n, pairs, alpha=PRIOR_ALPHA)
-    variances = np.diag(cov)
-    return {
-        item_ids[i]: Score(float(mean[i]), float(variances[i]))
-        for i in range(n)
+    scores: dict[str, Score] = {
+        iid: Score(0.0, COLD_START_VARIANCE) for iid in item_ids
     }
+    if not raw_pairs:
+        return scores
+
+    participating = {iid for pair in raw_pairs for iid in pair}
+    sub_ids = sorted(participating)
+    sub_idx = {iid: i for i, iid in enumerate(sub_ids)}
+    pairs = [(sub_idx[w], sub_idx[loser]) for w, loser in raw_pairs]
+
+    mean, cov = choix.ep_pairwise(len(sub_ids), pairs, alpha=PRIOR_ALPHA)
+    variances = np.diag(cov)
+    for i, iid in enumerate(sub_ids):
+        scores[iid] = Score(float(mean[i]), float(variances[i]))
+    return scores
 
 
 def select_cluster(

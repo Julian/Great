@@ -79,6 +79,33 @@ def test_infer_drops_stale_item_ids():
     assert "ghost" not in scores
 
 
+def test_infer_isolated_items_get_prior_without_paying_for_full_solve():
+    # Regression: a list with thousands of items but only a handful of
+    # comparisons used to run a dense n-by-n EP solve. With n=10k that
+    # was tens of seconds; the per-iteration cost made interactive
+    # ranking unusable on large catalogs. Items not touched by any
+    # comparison collapse to the prior anyway, so they're dropped from
+    # the solve.
+    import time  # noqa: PLC0415
+
+    items = [_movie(f"i{n:05d}") for n in range(10_000)]
+    comparisons = [
+        _comp(["i00000", "i00001"], [[0], [1]]),
+        _comp(["i00001", "i00002"], [[0], [1]]),
+        _comp(["i00002", "i00003"], [[0], [1]]),
+    ]
+    start = time.perf_counter()
+    scores = infer(comparisons, items)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 1.0, f"infer took {elapsed:.2f}s on 10k items / 3 pairs"
+    assert len(scores) == 10_000
+    assert (
+        scores["i00000"].mean > scores["i00001"].mean > scores["i00002"].mean
+    )
+    # An item with no comparisons sits at the prior.
+    assert scores["i09999"] == Score(0.0, COLD_START_VARIANCE)
+
+
 def test_select_cluster_cold_start_returns_all():
     items = [_movie(c) for c in "abcde"]
     scores = {i.id: Score(0.0, COLD_START_VARIANCE) for i in items}
