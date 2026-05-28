@@ -211,3 +211,60 @@ async def test_skip_returns_skip_sentinel():
     async with app.run_test() as pilot:
         await pilot.press("s")
     assert app.result == SKIP
+
+
+@pytest.mark.asyncio
+async def test_open_opens_focused_item_via_player(monkeypatch):
+    opened: list[str] = []
+    monkeypatch.setattr(
+        "webbrowser.open",
+        lambda url, new=0: opened.append(url),
+    )
+    items = [
+        Item(
+            id="spotify:track:abc",
+            kind="song",
+            title="A",
+            external_ids={"spotify": "spotify:track:abc"},
+        ),
+        Item(
+            id="spotify:track:xyz",
+            kind="song",
+            title="B",
+            external_ids={"spotify": "spotify:track:xyz"},
+        ),
+    ]
+    app = RankApp(items)
+    async with app.run_test() as pilot:
+        await pilot.press("j")
+        await pilot.press("o")
+    assert opened == ["https://open.spotify.com/track/xyz"]
+
+
+@pytest.mark.asyncio
+async def test_open_is_noop_when_player_returns_none(monkeypatch):
+    opened: list[str] = []
+    monkeypatch.setattr(
+        "webbrowser.open",
+        lambda url, new=0: opened.append(url),
+    )
+    app = RankApp(_movies("a", "b", "c"))
+    async with app.run_test() as pilot:
+        await pilot.press("o")
+    assert opened == []
+
+
+@pytest.mark.asyncio
+async def test_open_uses_custom_player(monkeypatch):
+    opened: list[str] = []
+    monkeypatch.setattr(
+        "webbrowser.open",
+        lambda url, new=0: opened.append(url),
+    )
+    app = RankApp(
+        _movies("a", "b"),
+        player=lambda item: f"https://example.test/{item.id}",
+    )
+    async with app.run_test() as pilot:
+        await pilot.press("o")
+    assert opened == ["https://example.test/a"]

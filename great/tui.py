@@ -12,12 +12,14 @@ asks for another, Enter submits, q/Esc cancels).
 """
 
 from typing import ClassVar
+import webbrowser
 
 from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Footer, Header, Label, ListItem, ListView
 
+from great import players
 from great.models import Item
 from great.session import SKIP, RankResult, Session
 
@@ -47,13 +49,20 @@ class RankApp(App):
         Binding("equals_sign", "tie_rest", "Tie rest", priority=True),
         Binding("t", "tie", "Tie all", priority=True),
         Binding("s", "skip", "Skip", priority=True),
+        Binding("o", "open", "Open", priority=True),
         Binding("enter", "submit", "Submit", priority=True),
         Binding("q,escape", "cancel", "Cancel", priority=True),
     ]
 
-    def __init__(self, items: list[Item]):
+    def __init__(
+        self,
+        items: list[Item],
+        *,
+        player: players.Player = players.DEFAULT,
+    ):
         super().__init__()
         self._items = items
+        self._player = player
         self._order: list[int] = list(range(len(items)))
         # _tied[i] is True when position i is tied with position i-1.
         # _tied[0] is always False (no boundary above position 0).
@@ -66,7 +75,8 @@ class RankApp(App):
         yield Label(
             "Rank from best to worst. "
             "j/k focus, J/K move, 1-9 send to rank, "
-            "==tie rest below, t=tie all, s=skip, Enter submit, q cancel.",
+            "==tie rest below, t=tie all, s=skip, o=open, "
+            "Enter submit, q cancel.",
             id="hint",
         )
         yield ListView(
@@ -211,6 +221,23 @@ class RankApp(App):
         self.result = SKIP
         self.exit()
 
+    def action_open(self) -> None:
+        """
+        Open the focused item in the configured player.
+
+        Reuses the existing browser tab (``new=0``) so successive
+        presses across a ranking session don't leave a tab graveyard
+        behind. Notifies (rather than silently failing) when the
+        player can't build a URL for this item.
+        """
+        idx = self._list.index or 0
+        item = self._items[self._order[idx]]
+        url = self._player(item)
+        if url is None:
+            self.notify("No player URL for this item.")
+            return
+        webbrowser.open(url)
+
     def action_submit(self) -> None:
         """Submit the current order, collapsing tied-with-above runs."""
         groups: list[list[str]] = []
@@ -229,8 +256,12 @@ class RankApp(App):
         self.exit()
 
 
-def run_rank_session(items: list[Item]) -> RankResult:
+def run_rank_session(
+    items: list[Item],
+    *,
+    player: players.Player = players.DEFAULT,
+) -> RankResult:
     """Run the TUI synchronously; return ordering or ``None`` on cancel."""
-    app = RankApp(items)
+    app = RankApp(items, player=player)
     app.run()
     return app.result
