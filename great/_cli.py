@@ -253,6 +253,89 @@ def _scope_for(store: Store, target: str, *, want: bool) -> RankingScope:
     return RankingScope.for_list(store, target)
 
 
+def _kind_for(store: Store, target: str, *, want: bool) -> ItemKind:
+    """Resolve the :class:`ItemKind` a ``rank`` target ranges over."""
+    if want:
+        return _parse_kind(target)
+    return store.list_config(target).kind
+
+
+def _recent_focus_ids(
+    store: Store,
+    kind: ItemKind,
+    items: list[Item],
+    n: int,
+) -> list[str]:
+    """
+    Return up to ``n`` ids of the most recent diary entries of ``kind``.
+
+    Walks the diary newest-first across any status, deduplicates by
+    item id, and keeps only ids that still appear in ``items`` (so a
+    log entry pointing at a removed item is skipped). The resulting
+    list feeds ``run_rank_loop``'s ``focus_ids``: the recent items
+    become cluster seeds, but clusters can still draw neighbors from
+    the broader list to place each recent item in the global ranking.
+    """
+    item_id_set = {i.id for i in items}
+    out: list[str] = []
+    seen: set[str] = set()
+    for entry in sorted(store.log(), key=lambda e: e.ts, reverse=True):
+        if entry.kind != kind or entry.item in seen:
+            continue
+        if entry.item not in item_id_set:
+            continue
+        seen.add(entry.item)
+        out.append(entry.item)
+        if len(out) >= n:
+            break
+    return out
+
+
+def _filter_by_creator(
+    store: Store,
+    items: list[Item],
+    by: str,
+) -> tuple[set[str], str]:
+    """
+    Restrict ``items`` to those whose ``creators`` matches ``by``.
+
+    Resolves ``by`` against the artist catalog first so id- or
+    external-id-style queries (a Spotify URI, a MusicBrainz UUID)
+    translate to the canonical title before matching — ``creators``
+    stores titles, not ids. Falls back to a case-insensitive literal
+    match on the raw value when no artist resolves (uncatalogued
+    artist, or ambiguous match where literal equality already does
+    the right thing).
+    """
+    try:
+        canonical = resolve_item(store, by, kind="artist").title
+    except (AmbiguousItemError, ItemNotFoundError):
+        canonical = by
+    target = canonical.casefold()
+    ids = {
+        i.id for i in items if any(c.casefold() == target for c in i.creators)
+    }
+    return ids, f"by {canonical!r}"
+
+
+def _filter_by_parent(
+    store: Store,
+    items: list[Item],
+    kind: ItemKind,
+    from_: str,
+) -> tuple[set[str], str]:
+    """Restrict ``items`` to those whose parent resolves to ``from_``."""
+    parent_kind = PARENT_KIND.get(kind)
+    if parent_kind is None:
+        raise typer.BadParameter(
+            f"items of kind {kind!r} have no parent collection; "
+            "--from is not applicable.",
+        )
+    parent = resolve_item(store, from_, kind=parent_kind)
+    ids = {i.id for i in items if i.parent_id == parent.id}
+    return ids, f"from {parent.title!r}"
+
+
 @app.command(name="lists")
 def lists_(ctx: typer.Context) -> None:
     """Print the lists configured in ``great.toml``."""
@@ -324,16 +407,79 @@ def rank(
             help="Stop after this many comparisons in one session.",
         ),
     ] = RANK_MAX_ITERS_DEFAULT,
+    recent: Annotated[
+        int | None,
+        typer.Option(
+            "--recent",
+            metavar="N",
+            help=(
+                "Seed clusters from the last N diary entries of this kind "
+                "to place them in the broader ranking."
+            ),
+        ),
+    ] = None,
+    by: Annotated[
+        str | None,
+        typer.Option(
+            "--by",
+            metavar="CREATOR",
+            help=(
+                "Restrict to items by this creator — clusters never leave "
+                "the matching set."
+            ),
+        ),
+    ] = None,
+    from_: Annotated[
+        str | None,
+        typer.Option(
+            "--from",
+            metavar="PARENT",
+            help=(
+                "Restrict to items whose parent matches (songs from an "
+                "album, episodes from a podcast)."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Run an interactive ranking session in the Textual TUI."""
+    if sum(x is not None for x in (recent, by, from_)) > 1:
+        raise typer.BadParameter(
+            "--recent, --by, and --from are mutually exclusive.",
+        )
+    if recent is not None and recent < 1:
+        raise typer.BadParameter("--recent must be at least 1.")
+    if recent is not None and want:
+        raise typer.BadParameter(
+            "--recent doesn't compose with --want "
+            "(want items don't have diary entries).",
+        )
     with _friendly_errors():
         from great.tui import run_rank_session  # noqa: PLC0415
 
         store = Store.find(ctx.obj)
+        kind = _kind_for(store, target, want=want)
+        scope = _scope_for(store, target, want=want)
+        focus_ids: list[str] | None = None
+        if recent is not None:
+            focus_ids = _recent_focus_ids(store, kind, scope.items, recent)
+            if not focus_ids:
+                typer.echo(
+                    f"No diary entries match --recent for kind {kind!r}; "
+                    "nothing to rank.",
+                    err=True,
+                )
+                raise typer.Exit(1)
+        elif by is not None:
+            ids, suffix = _filter_by_creator(store, scope.items, by)
+            scope = scope.restrict_to(ids, suffix)
+        elif from_ is not None:
+            ids, suffix = _filter_by_parent(store, scope.items, kind, from_)
+            scope = scope.restrict_to(ids, suffix)
         run_rank_loop(
-            _scope_for(store, target, want=want),
+            scope,
             session=run_rank_session,
             max_iters=max_iters,
+            focus_ids=focus_ids,
         )
 
 

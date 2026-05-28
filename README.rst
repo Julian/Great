@@ -55,7 +55,11 @@ CLI
 
 ``great rank <list>`` / ``great rank <kind> --want``
     Run a Textual ranking session — over a favorite-list, or (with
-    ``--want``) the want queue for ``<kind>``.
+    ``--want``) the want queue for ``<kind>``. Filters: ``--recent N``
+    seeds clusters from the last N diary entries to place them in the
+    broader ranking; ``--by CREATOR`` and ``--from PARENT`` hard-restrict
+    the universe (rank Beatles albums against each other, songs from an
+    album, episodes from a podcast).
 
 ``great show <list>`` / ``great show <kind> --want``
     Print the inferred ranking, favorites or want.

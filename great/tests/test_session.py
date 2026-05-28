@@ -204,6 +204,51 @@ def test_run_rank_loop_want_scope_writes_to_want_comparisons(tmp_path):
     assert all(len(group) == 1 for group in c.ordering)
 
 
+def test_restrict_to_filters_items(tmp_path, make_movies_store):
+    items = [
+        Item(id=f"tt{i}", kind="movie", title=f"M{i}", year=2000 + i)
+        for i in range(5)
+    ]
+    store = make_movies_store(tmp_path, items=items)
+
+    scope = RankingScope.for_list(store, "movies").restrict_to(
+        {"tt1", "tt3", "missing"},
+        "by 'Some Director'",
+    )
+
+    assert [i.id for i in scope.items] == ["tt1", "tt3"]
+    assert "by 'Some Director'" in scope.label
+
+
+def test_restrict_to_still_appends_to_underlying_list(
+    tmp_path,
+    make_movies_store,
+):
+    items = [
+        Item(id=f"tt{i}", kind="movie", title=f"M{i}", year=2000 + i)
+        for i in range(5)
+    ]
+    store = make_movies_store(tmp_path, items=items)
+
+    scope = RankingScope.for_list(store, "movies").restrict_to(
+        {"tt0", "tt1", "tt2"},
+        "by 'Whoever'",
+    )
+
+    run_rank_loop(
+        scope,
+        session=lambda cluster: [[item.id] for item in cluster],
+        max_iters=1,
+    )
+
+    [c] = store.comparisons("movies")
+    assert {iid for group in c.ordering for iid in group} <= {
+        "tt0",
+        "tt1",
+        "tt2",
+    }
+
+
 def test_run_rank_loop_refuses_too_few_items(tmp_path, make_movies_store):
     make_movies_store(
         tmp_path,

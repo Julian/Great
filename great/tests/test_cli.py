@@ -1,10 +1,11 @@
+from datetime import UTC, datetime, timedelta
 from typing import get_args
 import re
 
 from typer.testing import CliRunner
 
 from great._cli import DEFAULT_LISTS, app
-from great.models import GreatConfig, Item, ItemKind, ListConfig
+from great.models import GreatConfig, Item, ItemKind, ListConfig, LogEntry
 from great.session import RankingScope, run_rank_loop
 from great.store import Store
 
@@ -99,6 +100,232 @@ def test_rank_command_too_few_items_exits_nonzero(
     assert "at least" in result.output.lower()
     assert "items/movies.toml" in result.output
     assert "[[items]]" in result.output
+
+
+def _make_songs_store(path):
+    """Build a tiny songs catalog with two albums + an outlier artist."""
+    config = GreatConfig(lists=[ListConfig(name="songs", kind="song")])
+    store = Store.init(path, config)
+    store.write_items(
+        "album",
+        [
+            Item(
+                id="abbey-road",
+                kind="album",
+                title="Abbey Road",
+                creators=["The Beatles"],
+            ),
+            Item(
+                id="revolver",
+                kind="album",
+                title="Revolver",
+                creators=["The Beatles"],
+            ),
+        ],
+    )
+    store.write_items(
+        "song",
+        [
+            Item(
+                id="come-together",
+                kind="song",
+                title="Come Together",
+                creators=["The Beatles"],
+                parent_id="abbey-road",
+            ),
+            Item(
+                id="something",
+                kind="song",
+                title="Something",
+                creators=["The Beatles"],
+                parent_id="abbey-road",
+            ),
+            Item(
+                id="eleanor-rigby",
+                kind="song",
+                title="Eleanor Rigby",
+                creators=["The Beatles"],
+                parent_id="revolver",
+            ),
+            Item(
+                id="bohemian",
+                kind="song",
+                title="Bohemian Rhapsody",
+                creators=["Queen"],
+            ),
+        ],
+    )
+    return store
+
+
+def test_rank_filters_are_mutually_exclusive(tmp_path):
+    _make_songs_store(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "rank",
+            "songs",
+            "--by",
+            "The Beatles",
+            "--from",
+            "Abbey Road",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.output.lower()
+
+
+def test_rank_recent_rejects_with_want(tmp_path):
+    _make_songs_store(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        [
+            "--root",
+            str(tmp_path),
+            "rank",
+            "song",
+            "--want",
+            "--recent",
+            "5",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "want" in result.output.lower()
+
+
+def test_rank_by_narrows_universe_in_error(tmp_path):
+    _make_songs_store(tmp_path)
+    # Only one Queen song → still too few items to rank, error names filter.
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "rank", "songs", "--by", "Queen"],
+    )
+    assert result.exit_code == 1
+    assert "found 1" in result.output
+    assert "by 'Queen'" in result.output
+    assert "loosen" in result.output.lower()
+
+
+def test_rank_from_resolves_parent_and_restricts(tmp_path):
+    _make_songs_store(tmp_path)
+    # Only one song in Revolver → triggers the same path, but with --from.
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "rank", "songs", "--from", "Revolver"],
+    )
+    assert result.exit_code == 1
+    assert "found 1" in result.output
+    assert "from 'Revolver'" in result.output
+
+
+def test_rank_from_rejects_kind_without_parent(tmp_path):
+    config = GreatConfig(lists=[ListConfig(name="movies", kind="movie")])
+    Store.init(tmp_path, config)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "rank", "movies", "--from", "Anything"],
+    )
+    assert result.exit_code != 0
+    assert "no parent collection" in result.output.lower()
+
+
+def test_rank_recent_with_no_diary_exits_nonzero(tmp_path):
+    _make_songs_store(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "rank", "songs", "--recent", "5"],
+    )
+    assert result.exit_code == 1
+    assert "no diary entries" in result.output.lower()
+
+
+def test_rank_recent_rejects_zero(tmp_path):
+    _make_songs_store(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        ["--root", str(tmp_path), "rank", "songs", "--recent", "0"],
+    )
+    assert result.exit_code != 0
+    assert "at least 1" in result.output.lower()
+
+
+def test_rank_recent_seeds_from_recent_diary(tmp_path):
+    store = _make_songs_store(tmp_path)
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    for i, song_id in enumerate(
+        ["come-together", "something", "eleanor-rigby", "bohemian"],
+    ):
+        store.append_log(
+            LogEntry(
+                ts=base + timedelta(days=i),
+                kind="song",
+                item=song_id,
+                status="consumed",
+            ),
+        )
+
+    # Drive the session via the helper directly so we can observe seeds.
+    from great._cli import _recent_focus_ids  # noqa: PLC0415
+
+    songs = store.items("song")
+    focus = _recent_focus_ids(store, "song", songs, n=2)
+    assert focus == ["bohemian", "eleanor-rigby"]
+
+
+def test_rank_recent_dedupes_and_filters_to_kind(tmp_path):
+    store = _make_songs_store(tmp_path)
+    # Two log entries for "something" — most-recent wins, only counted once.
+    # An entry for an album kind should be ignored entirely.
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    store.append_log(
+        LogEntry(ts=base, kind="song", item="something", status="consumed"),
+    )
+    store.append_log(
+        LogEntry(
+            ts=base + timedelta(days=1),
+            kind="album",
+            item="abbey-road",
+            status="consumed",
+        ),
+    )
+    store.append_log(
+        LogEntry(
+            ts=base + timedelta(days=2),
+            kind="song",
+            item="something",
+            status="started",
+        ),
+    )
+    store.append_log(
+        LogEntry(
+            ts=base + timedelta(days=3),
+            kind="song",
+            item="come-together",
+            status="consumed",
+        ),
+    )
+
+    from great._cli import _recent_focus_ids  # noqa: PLC0415
+
+    songs = store.items("song")
+    focus = _recent_focus_ids(store, "song", songs, n=5)
+    assert focus == ["come-together", "something"]
+
+
+def test_rank_by_canonicalizes_via_artist(tmp_path):
+    store = _make_songs_store(tmp_path)
+    # The store synthesizes a 'The Beatles' artist from songs.creators on
+    # compile; --by should canonicalize a lowercase query against it.
+    store.compile()
+
+    from great._cli import _filter_by_creator  # noqa: PLC0415
+
+    songs = store.items("song")
+    ids, description = _filter_by_creator(store, songs, "the beatles")
+    assert ids == {"come-together", "something", "eleanor-rigby"}
+    assert "The Beatles" in description
 
 
 def test_consumed_auto_creates_new_item(tmp_path):

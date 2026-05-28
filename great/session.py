@@ -9,7 +9,7 @@ layout itself.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal, Self
 import random
@@ -85,6 +85,27 @@ class RankingScope:
                 f"or by editing {want_file(kind)} directly."
             ),
             append_comparison=lambda c: store.append_want_comparison(kind, c),
+        )
+
+    def restrict_to(self, item_ids: set[str], description: str) -> Self:
+        """
+        Return a new scope whose universe is limited to ``item_ids``.
+
+        Used by hard-restrict filters (e.g. ``great rank albums --by
+        "The Beatles"``) — the cluster builder only ever sees the
+        restricted set, so the session ranks those items against each
+        other rather than placing them into a broader list. ``label``
+        is suffixed with ``description`` for clearer error messages
+        (``Need at least 3 items to rank 'albums' by 'The Beatles'``);
+        ``how_to_add`` is rewritten to suggest loosening the filter.
+        ``append_comparison`` is preserved so the underlying list's
+        comparison file still receives the new judgments.
+        """
+        return replace(
+            self,
+            items=[i for i in self.items if i.id in item_ids],
+            label=f"{self.label} {description}",
+            how_to_add="Loosen the filter.",
         )
 
 
